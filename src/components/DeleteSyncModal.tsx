@@ -47,7 +47,6 @@ export function DeleteSyncModal({
               gap: "10px",
               justifyContent: "flex-start",
               padding: "12px 14px",
-              background: "rgba(255,255,255,0.1)",
             }}
           >
             <FaGamepad color="#38bdf8" />
@@ -70,13 +69,12 @@ export function DeleteSyncModal({
               gap: "10px",
               justifyContent: "flex-start",
               padding: "12px 14px",
-              background: "rgba(239,68,68,0.28)",
-              border: "1px solid rgba(239,68,68,0.6)",
+              borderLeft: "4px solid #ef4444",
             }}
           >
             <FaCloud color="#f87171" />
             <div style={{ textAlign: "left" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#fecaca" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px" }}>
                 Eliminar de {serviceName} (tu cuenta)
               </div>
               <div style={{ fontSize: "11px", opacity: 0.8 }}>

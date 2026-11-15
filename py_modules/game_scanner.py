@@ -1,7 +1,7 @@
 import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
-from .cover_search import search_steamgriddb_cover
+from .cover_search import populate_covers_parallel
 
 
 def _normalize_name(name: str) -> str:
@@ -260,8 +260,7 @@ def scan_local_game_saves(with_covers: bool = True) -> List[Dict[str, Any]]:
     items.sort(key=lambda x: x["name"].lower())
 
     if with_covers:
-        for item in items[:35]:
-            item["coverUrl"] = search_steamgriddb_cover(item["name"])
+        populate_covers_parallel(items, max_items=40)
 
     return items
 

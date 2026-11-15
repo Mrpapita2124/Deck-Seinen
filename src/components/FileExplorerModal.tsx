@@ -92,8 +92,8 @@ export function FileExplorerModal({
                   padding: "6px 12px",
                   fontSize: "12px",
                   minWidth: "auto",
-                  background:
-                    listing.currentPath === bm.path ? "#1a9fff" : "rgba(255,255,255,0.1)",
+                  borderBottom:
+                    listing.currentPath === bm.path ? "3px solid #38bdf8" : "3px solid transparent",
                 }}
               >
                 {bm.label}
@@ -231,7 +231,7 @@ export function FileExplorerModal({
           {mode === "files-or-folder" && selectedFiles.length > 0 && (
             <DialogButton
               onClick={handleConfirmSelectedFiles}
-              style={{ minWidth: "180px", background: "#10b981", color: "#000", fontWeight: 700 }}
+              style={{ minWidth: "180px", fontWeight: 700 }}
             >
               Usar {selectedFiles.length} archivo(s)
             </DialogButton>
@@ -239,7 +239,7 @@ export function FileExplorerModal({
           <DialogButton
             onClick={handleConfirmFolder}
             disabled={!listing}
-            style={{ minWidth: "180px", background: "#1a9fff", color: "#fff", fontWeight: 700 }}
+            style={{ minWidth: "180px", fontWeight: 700 }}
           >
             Seleccionar esta carpeta
           </DialogButton>

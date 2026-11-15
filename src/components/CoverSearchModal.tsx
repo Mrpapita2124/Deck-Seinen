@@ -66,7 +66,6 @@ export function CoverSearchModal({
               alignItems: "center",
               justifyContent: "center",
               gap: "6px",
-              background: "#1a9fff",
             }}
           >
             <FaSearch />

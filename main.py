@@ -20,6 +20,7 @@ from py_modules.game_scanner import (
 from py_modules.cover_search import (
     search_duckduckgo_images,
     download_image_as_data_url,
+    populate_covers_parallel,
 )
 
 
@@ -114,6 +115,10 @@ class Plugin:
             if bool(m.get("isGameSave")) and m.get("id") not in local_ids:
                 games.append(m)
         games.sort(key=lambda x: str(x.get("name") or "").lower())
+        await asyncio.to_thread(populate_covers_parallel, games, 30)
+        for g in games:
+            if not g.get("coverDataUrl") and g.get("coverUrl"):
+                g["coverDataUrl"] = g["coverUrl"]
         return games
 
     async def detect_cloud_game_paths(self, syncs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:

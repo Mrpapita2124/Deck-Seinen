@@ -1,8 +1,10 @@
 import base64
 import json
 import re
+import ssl
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 STEAMGRIDDB_API_KEY = "ac4b064580cac55b3050b8b2f4d42a73"
@@ -17,8 +19,13 @@ def _http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int =
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(url, headers=req_headers)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except Exception:
+        ctx = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            return resp.read()
 
 
 def search_duckduckgo_images(query: str, max_results: int = 24) -> List[Dict[str, Any]]:
@@ -111,14 +118,30 @@ def search_steamgriddb_cover(game_name: str) -> Optional[str]:
             return None
 
         grids_raw = _http_get(
-            f"https://www.steamgriddb.com/api/v2/grids/game/{game_id}?dimensions=600x900,460x215,920x430",
+            f"https://www.steamgriddb.com/api/v2/grids/game/{game_id}",
             headers=headers,
             timeout=8,
         )
         grids_data = json.loads(grids_raw.decode("utf-8", errors="ignore"))
         grids = grids_data.get("data") or []
         if grids:
-            return grids[0].get("thumb") or grids[0].get("url")
+            url = grids[0].get("thumb") or grids[0].get("url")
+            if url:
+                return download_image_as_data_url(url)
     except Exception:
         return None
     return None
+
+
+def populate_covers_parallel(items: List[Dict[str, Any]], max_items: int = 40) -> None:
+    targets = [it for it in items[:max_items] if not it.get("coverUrl") and not it.get("coverDataUrl")]
+    if not targets:
+        return
+
+    def _fetch(item: Dict[str, Any]) -> None:
+        cover = search_steamgriddb_cover(str(item.get("name") or ""))
+        if cover:
+            item["coverUrl"] = cover
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(_fetch, targets))

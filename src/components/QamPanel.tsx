@@ -93,6 +93,7 @@ export function QamPanel() {
   const [savingDevice, setSavingDevice] = useState(false);
   const [authProvider, setAuthProvider] = useState<CloudProvider | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [redirectUrlInput, setRedirectUrlInput] = useState("");
   const [completingRedirect, setCompletingRedirect] = useState(false);
@@ -126,20 +127,22 @@ export function QamPanel() {
   }, []);
 
   useEffect(() => {
-    if (!authUrl) {
+    const targetQr = qrUrl || authUrl;
+    if (!targetQr) {
       setQrDataUrl(null);
       return;
     }
-    QRCode.toDataURL(authUrl, { width: 176, margin: 1 })
+    QRCode.toDataURL(targetQr, { width: 176, margin: 1 })
       .then((url) => setQrDataUrl(url))
       .catch(() => setQrDataUrl(null));
-  }, [authUrl]);
+  }, [qrUrl, authUrl]);
 
   // --- Acciones de Sesiones / Servicios ---
   const startLogin = async (provider: CloudProvider) => {
     setStatusMsg(null);
     setAuthProvider(provider);
     setAuthUrl(null);
+    setQrUrl(null);
     setRedirectUrlInput("");
     try {
       const res = await api.startAuth(provider);
@@ -148,17 +151,18 @@ export function QamPanel() {
         setAuthProvider(null);
         return;
       }
-      if (res.authUrl) {
-        setAuthUrl(res.authUrl);
-      }
+      if (res.authUrl) setAuthUrl(res.authUrl);
+      if (res.qrUrl) setQrUrl(res.qrUrl);
       if (pollTimer.current) window.clearInterval(pollTimer.current);
       pollTimer.current = window.setInterval(async () => {
         const poll = await api.pollAuth(provider);
         if (poll.authUrl) setAuthUrl(poll.authUrl);
+        if (poll.qrUrl) setQrUrl(poll.qrUrl);
         if (poll.done) {
           if (pollTimer.current) window.clearInterval(pollTimer.current);
           setAuthProvider(null);
           setAuthUrl(null);
+          setQrUrl(null);
           setRedirectUrlInput("");
           if (poll.error && !poll.connected) {
             setStatusMsg(poll.error);
@@ -206,6 +210,7 @@ export function QamPanel() {
     }
     setAuthProvider(null);
     setAuthUrl(null);
+    setQrUrl(null);
     setRedirectUrlInput("");
   };
 
@@ -294,8 +299,6 @@ export function QamPanel() {
                   gap: "6px",
                   padding: "8px",
                   fontSize: "12px",
-                  background: "#1a9fff",
-                  color: "#fff",
                   fontWeight: 700,
                 }}
               >
@@ -377,8 +380,6 @@ export function QamPanel() {
                             minWidth: 0,
                             padding: "6px 8px",
                             fontSize: "11px",
-                            background: "rgba(239,68,68,0.22)",
-                            color: "#fecaca",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -396,8 +397,6 @@ export function QamPanel() {
                             minWidth: 0,
                             padding: "6px 8px",
                             fontSize: "11px",
-                            background: "#1a9fff",
-                            color: "#fff",
                             fontWeight: 700,
                           }}
                         >
@@ -429,8 +428,6 @@ export function QamPanel() {
                               minWidth: 0,
                               padding: "7px 8px",
                               fontSize: "11px",
-                              background: "#10b981",
-                              color: "#000",
                               fontWeight: 700,
                               display: "flex",
                               alignItems: "center",
@@ -483,7 +480,6 @@ export function QamPanel() {
                                 minWidth: 0,
                                 padding: "6px 8px",
                                 fontSize: "11px",
-                                background: "#1a9fff",
                                 fontWeight: 700,
                               }}
                             >
@@ -575,8 +571,6 @@ export function QamPanel() {
                 gap: "5px",
                 padding: "8px 6px",
                 fontSize: "12px",
-                background: "#1a9fff",
-                color: "#fff",
                 boxSizing: "border-box",
               }}
             >
@@ -720,11 +714,10 @@ export function QamPanel() {
                           width: "48px",
                           padding: "6px 4px",
                           fontSize: "11px",
-                          background: isPending ? "#f59e0b" : "#1a9fff",
-                          color: isPending ? "#000" : "#fff",
                           fontWeight: 700,
                           flexShrink: 0,
                           boxSizing: "border-box",
+                          borderBottom: isPending ? "2px solid #f59e0b" : undefined,
                         }}
                       >
                         {isBusy ? "..." : "sync"}
@@ -804,8 +797,6 @@ export function QamPanel() {
                           minWidth: 0,
                           padding: "5px 4px",
                           fontSize: "11px",
-                          background: "rgba(239,68,68,0.22)",
-                          color: "#fca5a5",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",

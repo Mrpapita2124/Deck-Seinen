@@ -339,7 +339,8 @@ export function AddMorePage() {
   }));
 
   return (
-    <div
+    <Focusable
+      flow-children="horizontal"
       style={{
         display: "flex",
         height: "100vh",
@@ -379,8 +380,8 @@ export function AddMorePage() {
             setErrorMsg(null);
           }}
           style={{
-            background: activeTab === "sync_here" ? "#1a9fff" : "rgba(255,255,255,0.08)",
             fontWeight: 700,
+            borderLeft: activeTab === "sync_here" ? "4px solid #38bdf8" : "4px solid transparent",
           }}
         >
           Sync here
@@ -393,8 +394,8 @@ export function AddMorePage() {
             setErrorMsg(null);
           }}
           style={{
-            background: activeTab === "upload" ? "#1a9fff" : "rgba(255,255,255,0.08)",
             fontWeight: 700,
+            borderLeft: activeTab === "upload" ? "4px solid #38bdf8" : "4px solid transparent",
           }}
         >
           Upload
@@ -402,7 +403,7 @@ export function AddMorePage() {
       </Focusable>
 
       {/* Panel derecho */}
-      <div
+      <Focusable
         style={{
           flex: 1,
           display: "flex",
@@ -433,8 +434,8 @@ export function AddMorePage() {
                   minWidth: "100px",
                   padding: "6px 14px",
                   fontSize: "12px",
-                  background: sourceFilter === f.id ? "#1a9fff" : "rgba(255,255,255,0.08)",
                   fontWeight: 700,
+                  borderBottom: sourceFilter === f.id ? "3px solid #38bdf8" : "3px solid transparent",
                 }}
               >
                 {f.label}
@@ -490,9 +491,6 @@ export function AddMorePage() {
                           flexDirection: "column",
                           alignItems: "center",
                           gap: "8px",
-                          background: selected
-                            ? "rgba(26,159,255,0.28)"
-                            : "rgba(255,255,255,0.06)",
                           border: selected ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.1)",
                           borderRadius: "10px",
                         }}
@@ -561,7 +559,7 @@ export function AddMorePage() {
               <DialogButton
                 disabled={selectedCloudIds.length === 0}
                 onClick={handleSyncHereContinue}
-                style={{ minWidth: "130px", background: "#1a9fff", fontWeight: 700 }}
+                style={{ minWidth: "130px", fontWeight: 700 }}
               >
                 Continue ({selectedCloudIds.length})
               </DialogButton>
@@ -679,8 +677,6 @@ export function AddMorePage() {
                               style={{
                                 padding: "6px 8px",
                                 fontSize: "11px",
-                                background: "#f59e0b",
-                                color: "#000",
                                 fontWeight: 700,
                               }}
                             >
@@ -713,7 +709,7 @@ export function AddMorePage() {
               <DialogButton
                 onClick={handleConfirmSyncHere}
                 disabled={syncingHere || detectingPaths}
-                style={{ minWidth: "120px", background: "#10b981", color: "#000", fontWeight: 700 }}
+                style={{ minWidth: "120px", fontWeight: 700 }}
               >
                 {syncingHere ? "Syncing..." : "Sync"}
               </DialogButton>
@@ -754,9 +750,6 @@ export function AddMorePage() {
                           flexDirection: "column",
                           alignItems: "center",
                           gap: "8px",
-                          background: selected
-                            ? "rgba(26,159,255,0.28)"
-                            : "rgba(255,255,255,0.06)",
                           border: selected ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.1)",
                           borderRadius: "10px",
                         }}
@@ -846,7 +839,7 @@ export function AddMorePage() {
               <DialogButton
                 disabled={selectedLocalIds.length === 0}
                 onClick={handleUploadContinueFromScan}
-                style={{ minWidth: "130px", background: "#1a9fff", fontWeight: 700 }}
+                style={{ minWidth: "130px", fontWeight: 700 }}
               >
                 Continue ({selectedLocalIds.length})
               </DialogButton>
@@ -924,7 +917,7 @@ export function AddMorePage() {
               <DialogButton
                 onClick={handleUploadScanned}
                 disabled={uploadingGames || connectedProviders.length === 0}
-                style={{ minWidth: "130px", background: "#10b981", color: "#000", fontWeight: 700 }}
+                style={{ minWidth: "130px", fontWeight: 700 }}
               >
                 {uploadingGames ? "Subiendo..." : "Sync"}
               </DialogButton>
@@ -1078,14 +1071,14 @@ export function AddMorePage() {
               <DialogButton
                 onClick={handleCreateManual}
                 disabled={creatingManual || connectedProviders.length === 0}
-                style={{ minWidth: "130px", background: "#1a9fff", fontWeight: 700 }}
+                style={{ minWidth: "130px", fontWeight: 700 }}
               >
                 {creatingManual ? "Creando..." : "Continue"}
               </DialogButton>
             </Focusable>
           </div>
         )}
-      </div>
-    </div>
+      </Focusable>
+    </Focusable>
   );
 }

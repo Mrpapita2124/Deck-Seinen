@@ -1,12 +1,16 @@
+import http.client
+import http.server
 import json
 import os
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 from typing import Any, Dict, List, Optional
@@ -132,6 +136,56 @@ class RcloneManager:
             check=False,
         )
 
+    def _get_lan_ip(self) -> Optional[str]:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            if ip and not ip.startswith("127."):
+                return ip
+        except Exception:
+            pass
+        return None
+
+    def _start_lan_auth_proxy(self, target_port: int) -> Optional[Dict[str, Any]]:
+        lan_ip = self._get_lan_ip()
+        if not lan_ip:
+            return None
+
+        class _ProxyHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self_req):
+                try:
+                    conn = http.client.HTTPConnection("127.0.0.1", target_port, timeout=15)
+                    conn.request("GET", self_req.path)
+                    resp = conn.getresponse()
+                    body = resp.read()
+                    self_req.send_response(resp.status)
+                    for k, v in resp.getheaders():
+                        if k.lower() in ("transfer-encoding", "connection", "content-length"):
+                            continue
+                        self_req.send_header(k, v)
+                    self_req.send_header("Content-Length", str(len(body)))
+                    self_req.end_headers()
+                    self_req.wfile.write(body)
+                    conn.close()
+                except Exception as exc:
+                    self_req.send_response(502)
+                    self_req.end_headers()
+                    self_req.wfile.write(str(exc).encode("utf-8"))
+
+            def log_message(self_req, format, *args):
+                pass
+
+        try:
+            server = http.server.ThreadingHTTPServer(("0.0.0.0", 0), _ProxyHandler)
+            proxy_port = server.server_address[1]
+            t = threading.Thread(target=server.serve_forever, daemon=True)
+            t.start()
+            return {"server": server, "lan_ip": lan_ip, "port": proxy_port}
+        except Exception:
+            return None
+
     def start_auth(self, provider: str) -> Dict[str, Any]:
         if provider not in PROVIDER_CONFIG:
             return {"ok": False, "error": f"Proveedor no soportado: {provider}"}
@@ -151,6 +205,8 @@ class RcloneManager:
         state: Dict[str, Any] = {
             "proc": proc,
             "url": None,
+            "qr_url": None,
+            "proxy": None,
             "token": None,
             "done": False,
             "error": None,
@@ -165,12 +221,18 @@ class RcloneManager:
                     output_lines.append(line)
                     url_match = re.search(r"(http://(?:127\.0\.0\.1|localhost):\d+/auth[^\s]*)", line)
                     if url_match and not state["url"]:
-                        state["url"] = url_match.group(1)
+                        local_url = url_match.group(1)
+                        state["url"] = local_url
+                        parsed = urllib.parse.urlparse(local_url)
+                        target_port = parsed.port or 53682
+                        proxy = self._start_lan_auth_proxy(target_port)
+                        if proxy:
+                            state["proxy"] = proxy
+                            state["qr_url"] = f"http://{proxy['lan_ip']}:{proxy['port']}{parsed.path}?{parsed.query}"
                 proc.wait()
                 full_out = "".join(output_lines)
                 token_match = re.search(r"(\{\"access_token\".*?\})", full_out, re.DOTALL)
                 if not token_match:
-                    # Buscar bloque entre ---> y <---
                     arrow_match = re.search(r"--->\s*(\{.*?\})\s*<---", full_out, re.DOTALL)
                     if arrow_match:
                         token_match = arrow_match
@@ -185,6 +247,13 @@ class RcloneManager:
             except Exception as exc:
                 state["error"] = str(exc)
                 state["done"] = True
+            finally:
+                if state.get("proxy") and state["proxy"].get("server"):
+                    try:
+                        state["proxy"]["server"].shutdown()
+                        state["proxy"]["server"].server_close()
+                    except Exception:
+                        pass
 
         with self._auth_lock:
             self._auth_processes[provider] = state
@@ -192,7 +261,6 @@ class RcloneManager:
         t = threading.Thread(target=_reader, daemon=True)
         t.start()
 
-        # Esperar brevemente hasta capturar la URL de autorización
         deadline = time.time() + 10.0
         while time.time() < deadline and not state["url"] and not state["done"]:
             time.sleep(0.1)
@@ -200,6 +268,7 @@ class RcloneManager:
         return {
             "ok": True,
             "authUrl": state["url"],
+            "qrUrl": state["qr_url"] or state["url"],
             "done": state["done"],
             "error": state["error"],
         }
@@ -270,18 +339,25 @@ class RcloneManager:
             state = self._auth_processes.get(provider)
         if not state:
             connected = self.get_connected_services().get(provider, False)
-            return {"done": True, "connected": connected, "authUrl": None, "error": None}
+            return {"done": True, "connected": connected, "authUrl": None, "qrUrl": None, "error": None}
         connected = self.get_connected_services().get(provider, False)
         return {
             "done": bool(state["done"]),
             "connected": connected,
             "authUrl": state["url"],
+            "qrUrl": state.get("qr_url") or state["url"],
             "error": state["error"],
         }
 
     def cancel_auth(self, provider: str) -> None:
         with self._auth_lock:
             state = self._auth_processes.pop(provider, None)
+        if state and state.get("proxy") and state["proxy"].get("server"):
+            try:
+                state["proxy"]["server"].shutdown()
+                state["proxy"]["server"].server_close()
+            except Exception:
+                pass
         if state and state.get("proc"):
             try:
                 state["proc"].terminate()
