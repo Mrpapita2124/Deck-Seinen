@@ -1,8 +1,13 @@
 import os
 import re
+import sys
 import uuid
 import asyncio
 from typing import Any, Dict, List, Optional
+
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+if _PLUGIN_DIR not in sys.path:
+    sys.path.insert(0, _PLUGIN_DIR)
 
 import decky
 
