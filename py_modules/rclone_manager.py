@@ -174,7 +174,7 @@ class RcloneManager:
         t.start()
 
         # Esperar brevemente hasta capturar la URL de autorización
-        deadline = time.time() + 6.0
+        deadline = time.time() + 10.0
         while time.time() < deadline and not state["url"] and not state["done"]:
             time.sleep(0.1)
 
@@ -184,6 +184,23 @@ class RcloneManager:
             "done": state["done"],
             "error": state["error"],
         }
+
+    def complete_auth_with_redirect_url(self, provider: str, redirect_url: str) -> Dict[str, Any]:
+        url = (redirect_url or "").strip()
+        if not url.startswith("http://127.0.0.1:") and not url.startswith("http://localhost:"):
+            return {"ok": False, "error": "La URL debe comenzar con http://127.0.0.1: o http://localhost:"}
+        try:
+            urllib.request.urlopen(url, timeout=10).read()
+            # Esperar brevemente a que rclone termine de procesar el token
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                poll = self.poll_auth(provider)
+                if poll.get("done") or poll.get("connected"):
+                    return {"ok": True, "connected": poll.get("connected", False)}
+                time.sleep(0.15)
+            return {"ok": True, "connected": self.get_connected_services().get(provider, False)}
+        except Exception as exc:
+            return {"ok": False, "error": f"No se pudo completar el enlace local: {exc}"}
 
     def _create_remote_with_token(self, provider: str, token_json: str) -> None:
         info = PROVIDER_CONFIG[provider]

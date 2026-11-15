@@ -88,6 +88,9 @@ class Plugin:
     async def poll_auth(self, provider: str) -> Dict[str, Any]:
         return await asyncio.to_thread(self.manager.poll_auth, provider)
 
+    async def complete_auth_redirect(self, provider: str, redirect_url: str) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.manager.complete_auth_with_redirect_url, provider, redirect_url)
+
     async def cancel_auth(self, provider: str) -> Dict[str, Any]:
         await asyncio.to_thread(self.manager.cancel_auth, provider)
         return {"ok": True}

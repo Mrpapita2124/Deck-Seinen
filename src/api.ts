@@ -22,6 +22,10 @@ export const api = {
     [provider: CloudProvider],
     { done: boolean; connected: boolean; authUrl?: string | null; error?: string | null }
   >("poll_auth"),
+  completeAuthRedirect: callable<
+    [provider: CloudProvider, redirectUrl: string],
+    { ok: boolean; connected?: boolean; error?: string }
+  >("complete_auth_redirect"),
   cancelAuth: callable<[provider: CloudProvider], { ok: boolean }>("cancel_auth"),
   logoutProvider: callable<
     [provider: CloudProvider],

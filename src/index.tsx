@@ -3,11 +3,9 @@ import { staticClasses } from "@decky/ui";
 import { FaCloud } from "react-icons/fa";
 import { QamPanel } from "./components/QamPanel";
 import { AddMorePage } from "./pages/AddMorePage";
-import { ServicesPage } from "./pages/ServicesPage";
 
 export default definePlugin(() => {
   routerHook.addRoute("/deck-seinen/add-more", AddMorePage);
-  routerHook.addRoute("/deck-seinen/services", ServicesPage);
 
   return {
     name: "DeckSeinen",
@@ -16,7 +14,6 @@ export default definePlugin(() => {
     icon: <FaCloud />,
     onDismount() {
       routerHook.removeRoute("/deck-seinen/add-more");
-      routerHook.removeRoute("/deck-seinen/services");
     },
   };
 });
