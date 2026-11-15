@@ -1,0 +1,11 @@
+{
+  "name": "DeckSeinen",
+  "author": "Mrpapita2124",
+  "flags": ["debug", "_root"],
+  "api_version": 1,
+  "publish": {
+    "tags": ["cloud", "saves", "sync", "backup", "google-drive", "onedrive", "dropbox"],
+    "description": "Sincroniza tus partidas guardadas y archivos en Google Drive, OneDrive y Dropbox desde tu Steam Deck (basado en SyncSeinen).",
+    "image": ""
+  }
+}
