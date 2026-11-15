@@ -4,6 +4,7 @@ node_modules/
 # Compilados y releases
 release/
 dist/
+bin/
 
 # Python
 __pycache__/

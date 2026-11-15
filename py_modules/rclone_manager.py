@@ -22,9 +22,10 @@ PROVIDER_CONFIG: Dict[str, Dict[str, str]] = {
 
 
 class RcloneManager:
-    def __init__(self, settings_dir: str, runtime_dir: str, logger: Any = None):
+    def __init__(self, settings_dir: str, runtime_dir: str, plugin_dir: str = "", logger: Any = None):
         self.settings_dir = settings_dir
         self.runtime_dir = runtime_dir
+        self.plugin_dir = plugin_dir
         self.logger = logger
         os.makedirs(self.settings_dir, exist_ok=True)
         os.makedirs(self.runtime_dir, exist_ok=True)
@@ -42,30 +43,48 @@ class RcloneManager:
                 pass
 
     def ensure_rclone(self) -> str:
-        bin_path = os.path.join(self.runtime_dir, "bin", "rclone")
-        if os.path.isfile(bin_path) and os.access(bin_path, os.X_OK):
-            return bin_path
+        runtime_bin = os.path.join(self.runtime_dir, "bin", "rclone")
+        if os.path.isfile(runtime_bin) and os.access(runtime_bin, os.X_OK):
+            return runtime_bin
+
+        # 1. Usar binario integrado en el plugin (bin/rclone)
+        if self.plugin_dir:
+            bundled_bin = os.path.join(self.plugin_dir, "bin", "rclone")
+            if os.path.isfile(bundled_bin):
+                try:
+                    os.chmod(bundled_bin, os.stat(bundled_bin).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    if os.access(bundled_bin, os.X_OK):
+                        return bundled_bin
+                except Exception:
+                    pass
+                # Si la carpeta del plugin es de solo lectura, copiar al runtime_dir
+                os.makedirs(os.path.dirname(runtime_bin), exist_ok=True)
+                shutil.copy2(bundled_bin, runtime_bin)
+                os.chmod(runtime_bin, os.stat(runtime_bin).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                return runtime_bin
 
         sys_rclone = shutil.which("rclone")
         if sys_rclone:
             return sys_rclone
 
-        # Descargar rclone oficial para Linux x86_64 (Steam Deck)
-        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+        # 2. Fallback: descargar rclone oficial con User-Agent válido
+        os.makedirs(os.path.dirname(runtime_bin), exist_ok=True)
         zip_path = os.path.join(self.runtime_dir, "rclone-linux.zip")
         url = "https://downloads.rclone.org/rclone-current-linux-amd64.zip"
         self._log(f"Descargando rclone desde {url}...")
-        urllib.request.urlretrieve(url, zip_path)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as out:
+            shutil.copyfileobj(resp, out)
         with zipfile.ZipFile(zip_path, "r") as zf:
             for member in zf.namelist():
                 if member.endswith("/rclone") or member == "rclone":
-                    with zf.open(member) as src, open(bin_path, "wb") as dst:
+                    with zf.open(member) as src, open(runtime_bin, "wb") as dst:
                         shutil.copyfileobj(src, dst)
                     break
         if os.path.exists(zip_path):
             os.remove(zip_path)
-        os.chmod(bin_path, os.stat(bin_path).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        return bin_path
+        os.chmod(runtime_bin, os.stat(runtime_bin).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        return runtime_bin
 
     def load_config(self) -> Dict[str, Any]:
         default_cfg: Dict[str, Any] = {
@@ -144,7 +163,7 @@ class RcloneManager:
                 assert proc.stdout is not None
                 for line in proc.stdout:
                     output_lines.append(line)
-                    url_match = re.search(r"(http://127\.0\.0\.1:\d+/auth[^\s]*)", line)
+                    url_match = re.search(r"(http://(?:127\.0\.0\.1|localhost):\d+/auth[^\s]*)", line)
                     if url_match and not state["url"]:
                         state["url"] = url_match.group(1)
                 proc.wait()

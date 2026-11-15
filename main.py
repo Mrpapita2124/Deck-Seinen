@@ -30,6 +30,7 @@ class Plugin:
         self.manager = RcloneManager(
             settings_dir=decky.DECKY_PLUGIN_SETTINGS_DIR,
             runtime_dir=decky.DECKY_PLUGIN_RUNTIME_DIR,
+            plugin_dir=decky.DECKY_PLUGIN_DIR,
             logger=decky.logger,
         )
         decky.logger.info("DeckSeinen backend iniciado.")
