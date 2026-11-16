@@ -119,7 +119,9 @@ class Plugin:
             # En Sync here aparecen las existentes en la nube marcadas como videojuego
             games = []
             for m in cloud_metas:
-                if bool(m.get("isGameSave")) and m.get("id") not in local_ids:
+                df = str(m.get("driveFolderPath") or m.get("driveFolder") or "").strip("/")
+                is_game = bool(m.get("isGameSave")) or df.startswith(f"{GAME_SAVES_ROOT}/")
+                if is_game and m.get("id") not in local_ids:
                     games.append(m)
             games.sort(key=lambda x: str(x.get("name") or "").lower())
             try:
@@ -160,11 +162,21 @@ class Plugin:
                 if not sync_id or not local_path:
                     continue
 
+                drive_folder = str(
+                    meta.get("driveFolderPath")
+                    or meta.get("driveFolder")
+                    or meta.get("driveFolderName")
+                    or ""
+                ).strip("/")
+                if not drive_folder:
+                    results.append({"id": sync_id, "ok": False, "error": "Carpeta en la nube vacía (driveFolderPath)."})
+                    continue
+
                 mappings[sync_id] = {
                     "id": sync_id,
                     "name": meta.get("name") or "Juego",
                     "provider": meta.get("provider") or "gdrive",
-                    "driveFolder": meta.get("driveFolder") or "",
+                    "driveFolder": drive_folder,
                     "localPath": local_path,
                     "ignoredPaths": meta.get("ignoredPaths") or [],
                     "isGameSave": True,

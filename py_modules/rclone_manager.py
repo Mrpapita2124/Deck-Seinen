@@ -472,6 +472,16 @@ class RcloneManager:
                     count += 1
         return count
 
+    def _resolve_drive_folder(self, data: Optional[Dict[str, Any]]) -> str:
+        if not isinstance(data, dict):
+            return ""
+        return str(
+            data.get("driveFolderPath")
+            or data.get("driveFolder")
+            or data.get("driveFolderName")
+            or ""
+        ).strip("/")
+
     def push_sync(self, sync_id: str) -> Dict[str, Any]:
         cfg = self.load_config()
         mapping = cfg["localMappings"].get(sync_id)
@@ -484,7 +494,9 @@ class RcloneManager:
 
         provider = mapping.get("provider") or "gdrive"
         remote = PROVIDER_CONFIG[provider]["remote"]
-        drive_folder = str(mapping.get("driveFolder") or "").strip("/")
+        drive_folder = self._resolve_drive_folder(mapping)
+        if not drive_folder:
+            return {"ok": False, "error": "Carpeta en la nube inválida o vacía."}
         ignored_paths = mapping.get("ignoredPaths") or []
         sync_name = str(mapping.get("name") or "Sync")
 
@@ -517,6 +529,8 @@ class RcloneManager:
                 "id": sync_id,
                 "name": mapping.get("name"),
                 "provider": provider,
+                "driveFolderPath": drive_folder,
+                "driveFolderName": drive_folder.split("/")[-1] if drive_folder else "",
                 "driveFolder": drive_folder,
                 "lastPushDevice": device_name,
                 "lastPushAt": now_iso,
@@ -544,7 +558,7 @@ class RcloneManager:
         os.makedirs(local_path, exist_ok=True)
         provider = mapping.get("provider") or "gdrive"
         remote = PROVIDER_CONFIG[provider]["remote"]
-        drive_folder = str(mapping.get("driveFolder") or "").strip("/")
+        drive_folder = self._resolve_drive_folder(mapping)
         ignored_paths = mapping.get("ignoredPaths") or []
         sync_name = str(mapping.get("name") or "Sync")
 
@@ -553,6 +567,16 @@ class RcloneManager:
             # Actualizar metadata desde la nube antes de hacer Pull
             cloud_metas = self.list_cloud_metadatas()
             cloud_match = next((m for m in cloud_metas if m.get("id") == sync_id), None)
+
+            if not drive_folder and cloud_match:
+                drive_folder = self._resolve_drive_folder(cloud_match)
+                if drive_folder:
+                    mapping["driveFolder"] = drive_folder
+                    cfg["localMappings"][sync_id] = mapping
+                    self.save_config(cfg)
+
+            if not drive_folder:
+                return {"ok": False, "error": "Carpeta en la nube vacía (driveFolderPath). No se descargará la raíz."}
 
             exclude_args = self._build_exclude_args(local_path, ignored_paths)
             res = self._run_rclone_with_progress(
@@ -604,7 +628,7 @@ class RcloneManager:
                         if "directory not found" not in err_txt.lower() and "not found" not in err_txt.lower():
                             return {"ok": False, "error": f"No se pudo borrar metadata en la nube: {err_txt}"}
 
-                    drive_folder = str(mapping.get("driveFolder") or "").strip("/")
+                    drive_folder = self._resolve_drive_folder(mapping)
                     if drive_folder:
                         purge_res = self._run_rclone(["purge", f"{remote}:{drive_folder}"], timeout=45)
                         if purge_res.returncode != 0:
