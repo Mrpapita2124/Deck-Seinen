@@ -16,6 +16,7 @@ import {
   FaImage,
   FaPlus,
   FaSearch,
+  FaSync,
 } from "react-icons/fa";
 import { api } from "../api";
 import { CoverSearchModal } from "../components/CoverSearchModal";
@@ -246,6 +247,13 @@ export function AddMorePage() {
     );
   };
 
+  const returnToPluginMenu = () => {
+    Navigation.NavigateBack();
+    window.setTimeout(() => {
+      Navigation.OpenQuickAccessMenu(999 as any);
+    }, 150);
+  };
+
   const handleConfirmSyncHere = async () => {
     const selected = cloudGames.filter((g) => selectedCloudIds.includes(g.id));
     const missing = selected.filter((g) => !(manualPaths[g.id] || "").trim());
@@ -261,7 +269,7 @@ export function AddMorePage() {
         localPath: manualPaths[meta.id],
       }));
       await api.linkAndPullSyncs(payload);
-      Navigation.NavigateBack();
+      returnToPluginMenu();
     } catch (err: any) {
       setErrorMsg(String(err?.message || err));
     } finally {
@@ -298,7 +306,7 @@ export function AddMorePage() {
           provider: uploadProviderMap[game.id] || connectedProviders[0] || "gdrive",
         }))
       );
-      Navigation.NavigateBack();
+      returnToPluginMenu();
     } catch (err: any) {
       setErrorMsg(String(err?.message || err));
     } finally {
@@ -325,7 +333,7 @@ export function AddMorePage() {
         setErrorMsg(res.error || "Error creando sincronización manual.");
         return;
       }
-      Navigation.NavigateBack();
+      returnToPluginMenu();
     } catch (err: any) {
       setErrorMsg(String(err?.message || err));
     } finally {
@@ -820,6 +828,20 @@ export function AddMorePage() {
                 paddingTop: "12px",
               }}
             >
+              <DialogButton
+                onClick={loadLocalGames}
+                disabled={loadingScan}
+                style={{
+                  minWidth: "120px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                }}
+              >
+                <FaSync />
+                <span>{loadingScan ? "Escaneando..." : "Refrescar"}</span>
+              </DialogButton>
               <DialogButton
                 onClick={() => {
                   setUploadStep("manual");

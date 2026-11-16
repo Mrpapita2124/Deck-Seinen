@@ -287,8 +287,9 @@ class Plugin:
         return res
 
     async def delete_sync(self, sync_id: str, delete_from_cloud: bool) -> Dict[str, Any]:
-        await asyncio.to_thread(self.manager.delete_sync, sync_id, bool(delete_from_cloud))
-        return {"ok": True, "state": await self.get_state()}
+        res = await asyncio.to_thread(self.manager.delete_sync, sync_id, bool(delete_from_cloud))
+        res["state"] = await self.get_state()
+        return res
 
     async def list_directory(self, path: Optional[str] = None) -> Dict[str, Any]:
         return await asyncio.to_thread(fs_list_directory, path)

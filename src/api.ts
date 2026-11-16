@@ -63,7 +63,7 @@ export const api = {
   smartSync: callable<[syncId: string], { ok: boolean; error?: string; state: PluginState }>("smart_sync"),
   deleteSync: callable<
     [syncId: string, deleteFromCloud: boolean],
-    { ok: boolean; state: PluginState }
+    { ok: boolean; error?: string; state: PluginState }
   >("delete_sync"),
 
   listDirectory: callable<[path?: string], DirectoryListing>("list_directory"),

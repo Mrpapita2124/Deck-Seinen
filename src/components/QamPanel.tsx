@@ -260,6 +260,7 @@ export function QamPanel() {
         onConfirmDelete={async (deleteFromCloud) => {
           const res = await api.deleteSync(sync.id, deleteFromCloud);
           if (res.state) setState(res.state);
+          return res;
         }}
       />
     );

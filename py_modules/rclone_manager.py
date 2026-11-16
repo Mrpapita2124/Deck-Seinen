@@ -1,3 +1,4 @@
+import html
 import http.client
 import http.server
 import json
@@ -153,6 +154,14 @@ class RcloneManager:
         if not lan_ip:
             return None
 
+        def _send_html(req_handler: http.server.BaseHTTPRequestHandler, status: int, content: str) -> None:
+            data = content.encode("utf-8")
+            req_handler.send_response(status)
+            req_handler.send_header("Content-Type", "text/html; charset=utf-8")
+            req_handler.send_header("Content-Length", str(len(data)))
+            req_handler.end_headers()
+            req_handler.wfile.write(data)
+
         class _ProxyHandler(http.server.BaseHTTPRequestHandler):
             def do_GET(self_req):
                 try:
@@ -160,19 +169,99 @@ class RcloneManager:
                     conn.request("GET", self_req.path)
                     resp = conn.getresponse()
                     body = resp.read()
+                    location = resp.getheader("Location")
+                    headers_list = resp.getheaders()
+                    conn.close()
+
+                    if self_req.path.startswith("/auth") and location:
+                        escaped_url = html.escape(location, quote=True)
+                        page = f"""<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeckSeinen - Iniciar sesión</title>
+<style>
+  body{{margin:0;padding:20px;font-family:system-ui,-apple-system,sans-serif;background:#0e141b;color:#f1f5f9;display:flex;justify-content:center;}}
+  .card{{width:100%;max-width:440px;background:#1b2430;border:1px solid #2d3b4e;border-radius:14px;padding:20px;box-sizing:border-box;}}
+  h1{{margin:0 0 8px;font-size:20px;}}
+  p{{font-size:14px;line-height:1.45;color:#cbd5e1;}}
+  .btn{{display:block;width:100%;box-sizing:border-box;text-align:center;padding:13px 16px;border-radius:10px;background:#1a9fff;color:#fff;font-weight:700;text-decoration:none;border:0;font-size:15px;cursor:pointer;margin:14px 0;}}
+  .btn-ok{{background:#10b981;color:#052e16;}}
+  input{{width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:14px;margin-top:8px;}}
+  code{{background:#0f172a;padding:2px 5px;border-radius:4px;color:#38bdf8;}}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>DeckSeinen</h1>
+  <p><strong>Paso 1:</strong> Abre el inicio de sesión en una pestaña nueva:</p>
+  <a class="btn" href="{escaped_url}" target="_blank" rel="noopener">Abrir inicio de sesión</a>
+  <p><strong>Paso 2:</strong> Al autorizar, tu navegador dirá que no se puede acceder a <code>127.0.0.1</code>. <strong>Es normal</strong>: copia esa URL de la barra de direcciones, vuelve aquí y pégala abajo:</p>
+  <form method="POST" action="/complete">
+    <input type="text" name="url" placeholder="http://127.0.0.1:53682/?code=..." required />
+    <button class="btn btn-ok" type="submit">Completar sesión en Steam Deck</button>
+  </form>
+</div>
+</body>
+</html>"""
+                        _send_html(self_req, 200, page)
+                        return
+
                     self_req.send_response(resp.status)
-                    for k, v in resp.getheaders():
+                    for k, v in headers_list:
                         if k.lower() in ("transfer-encoding", "connection", "content-length"):
                             continue
                         self_req.send_header(k, v)
                     self_req.send_header("Content-Length", str(len(body)))
                     self_req.end_headers()
                     self_req.wfile.write(body)
-                    conn.close()
                 except Exception as exc:
                     self_req.send_response(502)
                     self_req.end_headers()
                     self_req.wfile.write(str(exc).encode("utf-8"))
+
+            def do_POST(self_req):
+                if self_req.path != "/complete":
+                    _send_html(self_req, 404, "<h1>404</h1>")
+                    return
+                try:
+                    length = int(self_req.headers.get("Content-Length", "0"))
+                    raw = self_req.rfile.read(length).decode("utf-8", errors="replace")
+                    params = urllib.parse.parse_qs(raw)
+                    pasted = (params.get("url") or [""])[0].strip()
+                    parsed = urllib.parse.urlparse(pasted)
+                    if not parsed.query or ("code=" not in parsed.query and "error=" not in parsed.query):
+                        _send_html(
+                            self_req,
+                            400,
+                            "<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>URL inválida</h2><p>Asegúrate de copiar toda la URL que empieza con <code>http://127.0.0.1:...</code></p><a href='javascript:history.back()' style='color:#38bdf8;'>Volver</a></body></html>",
+                        )
+                        return
+                    cb_path = (parsed.path or "/") + f"?{parsed.query}"
+                    conn = http.client.HTTPConnection("127.0.0.1", target_port, timeout=15)
+                    conn.request("GET", cb_path)
+                    resp = conn.getresponse()
+                    resp.read()
+                    conn.close()
+                    if 200 <= resp.status < 400:
+                        _send_html(
+                            self_req,
+                            200,
+                            "<html><body style='background:#0e141b;color:#f1f5f9;font-family:sans-serif;padding:24px;text-align:center;'><h2 style='color:#34d399;'>¡Sesión iniciada en Steam Deck!</h2><p>Ya puedes cerrar esta pestaña y volver a tu Steam Deck.</p></body></html>",
+                        )
+                    else:
+                        _send_html(
+                            self_req,
+                            502,
+                            f"<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>Error ({resp.status})</h2><p>No se pudo validar el código en la Steam Deck. Intenta de nuevo.</p></body></html>",
+                        )
+                except Exception as exc:
+                    _send_html(
+                        self_req,
+                        502,
+                        f"<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>Error</h2><p>{html.escape(str(exc))}</p></body></html>",
+                    )
 
             def log_message(self_req, format, *args):
                 pass
@@ -536,17 +625,39 @@ class RcloneManager:
 
     def delete_sync(self, sync_id: str, delete_from_cloud: bool) -> Dict[str, Any]:
         cfg = self.load_config()
-        mapping = cfg["localMappings"].pop(sync_id, None)
-        self.save_config(cfg)
+        mapping = cfg["localMappings"].get(sync_id)
 
         if delete_from_cloud and mapping:
             provider = mapping.get("provider") or "gdrive"
-            if self.get_connected_services().get(provider):
+            if provider in PROVIDER_CONFIG and self.get_connected_services().get(provider):
                 remote = PROVIDER_CONFIG[provider]["remote"]
-                self._run_rclone(["deletefile", f"{remote}:{METADATA_FOLDER}/sync-{sync_id}.json"], timeout=30)
-                self._run_rclone(["deletefile", f"{remote}:{METADATA_FOLDER}/{sync_id}.json"], timeout=30)
-                drive_folder = str(mapping.get("driveFolder") or "").strip("/")
-                if drive_folder:
-                    self._run_rclone(["purge", f"{remote}:{drive_folder}"], timeout=90)
+                try:
+                    meta_res = self._run_rclone(
+                        [
+                            "delete",
+                            f"{remote}:{METADATA_FOLDER}",
+                            "--include",
+                            f"sync-{sync_id}.json",
+                            "--include",
+                            f"{sync_id}.json",
+                        ],
+                        timeout=30,
+                    )
+                    if meta_res.returncode != 0:
+                        err_txt = (meta_res.stderr or meta_res.stdout or "").strip()
+                        if "directory not found" not in err_txt.lower() and "not found" not in err_txt.lower():
+                            return {"ok": False, "error": f"No se pudo borrar metadata en la nube: {err_txt}"}
 
+                    drive_folder = str(mapping.get("driveFolder") or "").strip("/")
+                    if drive_folder:
+                        purge_res = self._run_rclone(["purge", f"{remote}:{drive_folder}"], timeout=45)
+                        if purge_res.returncode != 0:
+                            err_txt = (purge_res.stderr or purge_res.stdout or "").strip()
+                            if "directory not found" not in err_txt.lower() and "not found" not in err_txt.lower():
+                                return {"ok": False, "error": f"No se pudo borrar carpeta en la nube: {err_txt}"}
+                except Exception as exc:
+                    return {"ok": False, "error": f"Error eliminando de la nube: {exc}"}
+
+        cfg["localMappings"].pop(sync_id, None)
+        self.save_config(cfg)
         return {"ok": True}

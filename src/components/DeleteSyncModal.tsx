@@ -6,7 +6,7 @@ import { PROVIDER_LABELS, type LocalSync } from "../types";
 interface DeleteSyncModalProps {
   closeModal?: () => void;
   sync: LocalSync;
-  onConfirmDelete: (deleteFromCloud: boolean) => Promise<void>;
+  onConfirmDelete: (deleteFromCloud: boolean) => Promise<{ ok: boolean; error?: string } | void>;
 }
 
 export function DeleteSyncModal({
@@ -15,13 +15,21 @@ export function DeleteSyncModal({
   onConfirmDelete,
 }: DeleteSyncModalProps) {
   const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const serviceName = PROVIDER_LABELS[sync.provider] || "la nube";
 
   const handleAction = async (fromCloud: boolean) => {
     setBusy(true);
+    setErrorMsg(null);
     try {
-      await onConfirmDelete(fromCloud);
+      const res = await onConfirmDelete(fromCloud);
+      if (res && res.ok === false) {
+        setErrorMsg(res.error || "No se pudo eliminar de la nube.");
+        return;
+      }
       closeModal?.();
+    } catch (err: any) {
+      setErrorMsg(String(err?.message || err || "Error al eliminar."));
     } finally {
       setBusy(false);
     }
@@ -36,6 +44,21 @@ export function DeleteSyncModal({
         <p style={{ margin: "0 0 16px 0", fontSize: "13px", opacity: 0.85, lineHeight: 1.45 }}>
           ¿Cómo deseas eliminar esta sincronización? Tus archivos locales en la Steam Deck no se borrarán del disco.
         </p>
+        {errorMsg && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "8px 10px",
+              borderRadius: "8px",
+              background: "rgba(239,68,68,0.2)",
+              color: "#fca5a5",
+              fontSize: "12px",
+              wordBreak: "break-word",
+            }}
+          >
+            {errorMsg}
+          </div>
+        )}
 
         <Focusable style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <DialogButton
