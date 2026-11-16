@@ -31,7 +31,10 @@ class RcloneManager:
         os.makedirs(self.runtime_dir, exist_ok=True)
 
         self.config_path = os.path.join(self.settings_dir, "config.json")
-        self.rclone_conf_path = os.path.join(self.settings_dir, "rclone.conf")
+        if self.plugin_dir and os.path.isdir(self.plugin_dir) and os.access(self.plugin_dir, os.W_OK):
+            self.rclone_conf_path = os.path.join(self.plugin_dir, "rclone.conf")
+        else:
+            self.rclone_conf_path = os.path.join(self.settings_dir, "rclone.conf")
         self._auth_lock = threading.Lock()
         self._auth_processes: Dict[str, Dict[str, Any]] = {}
 
