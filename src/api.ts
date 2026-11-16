@@ -7,6 +7,7 @@ import type {
   DirectoryListing,
   PathDetectionResult,
   PluginState,
+  SyncProgress,
 } from "./types";
 
 export const api = {
@@ -57,6 +58,7 @@ export const api = {
   pushSync: callable<[syncId: string], { ok: boolean; error?: string; state: PluginState }>("push_sync"),
   pullSync: callable<[syncId: string], { ok: boolean; error?: string; state: PluginState }>("pull_sync"),
   smartSync: callable<[syncId: string], { ok: boolean; error?: string; state: PluginState }>("smart_sync"),
+  getSyncProgress: callable<[], SyncProgress>("get_sync_progress"),
   deleteSync: callable<
     [syncId: string, deleteFromCloud: boolean],
     { ok: boolean; error?: string; state: PluginState }

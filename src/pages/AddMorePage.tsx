@@ -21,6 +21,7 @@ import {
 import { api } from "../api";
 import { CoverSearchModal } from "../components/CoverSearchModal";
 import { FileExplorerModal } from "../components/FileExplorerModal";
+import { SyncProgressBar } from "../components/SyncProgressBar";
 import { useLang } from "../i18n";
 import {
   PROVIDER_LABELS,
@@ -28,6 +29,7 @@ import {
   type CloudProvider,
   type DetectedGameItem,
   type PathDetectionResult,
+  type SyncProgress,
 } from "../types";
 
 type MainTab = "sync_here" | "upload";
@@ -130,6 +132,31 @@ export function AddMorePage() {
   const [creatingManual, setCreatingManual] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+
+  const isSyncRunning = syncingHere || uploadingGames || creatingManual;
+
+  useEffect(() => {
+    if (!isSyncRunning) {
+      setSyncProgress(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const p = await api.getSyncProgress();
+        if (!cancelled) setSyncProgress(p);
+      } catch {
+        // ignore
+      }
+    };
+    poll();
+    const id = window.setInterval(poll, 300);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isSyncRunning]);
 
   const connectedProviders = (["gdrive", "onedrive", "dropbox"] as CloudProvider[]).filter(
     (p) => connectedServices[p]
@@ -722,6 +749,12 @@ export function AddMorePage() {
               )}
             </div>
 
+            {syncingHere && syncProgress?.active && (
+              <div style={{ paddingTop: "10px" }}>
+                <SyncProgressBar progress={syncProgress} />
+              </div>
+            )}
+
             <Focusable
               flow-children="horizontal"
               style={{
@@ -954,6 +987,12 @@ export function AddMorePage() {
               </Focusable>
             </div>
 
+            {uploadingGames && syncProgress?.active && (
+              <div style={{ paddingTop: "10px" }}>
+                <SyncProgressBar progress={syncProgress} />
+              </div>
+            )}
+
             <Focusable
               flow-children="horizontal"
               style={{
@@ -1117,6 +1156,12 @@ export function AddMorePage() {
                 </Focusable>
               </Focusable>
             </div>
+
+            {creatingManual && syncProgress?.active && (
+              <div style={{ paddingTop: "10px" }}>
+                <SyncProgressBar progress={syncProgress} />
+              </div>
+            )}
 
             <Focusable
               flow-children="horizontal"

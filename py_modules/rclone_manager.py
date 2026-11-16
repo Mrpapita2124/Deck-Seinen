@@ -34,6 +34,59 @@ class RcloneManager:
         self.rclone_conf_path = os.path.join(self.settings_dir, "rclone.conf")
         self._auth_lock = threading.Lock()
         self._auth_processes: Dict[str, Dict[str, Any]] = {}
+        self._progress_lock = threading.Lock()
+        self._batch_index = 0
+        self._batch_total = 0
+        self._progress: Dict[str, Any] = {
+            "active": False,
+            "syncId": None,
+            "syncName": "",
+            "operation": "",
+            "percent": 0,
+            "detail": "",
+            "index": 0,
+            "total": 0,
+        }
+
+    def set_batch_context(self, index: int, total: int) -> None:
+        with self._progress_lock:
+            self._batch_index = index
+            self._batch_total = total
+
+    def clear_batch_context(self) -> None:
+        with self._progress_lock:
+            self._batch_index = 0
+            self._batch_total = 0
+
+    def set_progress(self, sync_id: str, sync_name: str, operation: str, percent: int, detail: str = "") -> None:
+        with self._progress_lock:
+            self._progress = {
+                "active": True,
+                "syncId": sync_id,
+                "syncName": sync_name,
+                "operation": operation,
+                "percent": max(0, min(100, int(percent))),
+                "detail": detail[:90],
+                "index": self._batch_index,
+                "total": self._batch_total,
+            }
+
+    def clear_progress(self) -> None:
+        with self._progress_lock:
+            self._progress = {
+                "active": False,
+                "syncId": None,
+                "syncName": "",
+                "operation": "",
+                "percent": 0,
+                "detail": "",
+                "index": 0,
+                "total": 0,
+            }
+
+    def get_progress(self) -> Dict[str, Any]:
+        with self._progress_lock:
+            return dict(self._progress)
 
     def _log(self, msg: str) -> None:
         if self.logger:
@@ -131,6 +184,57 @@ class RcloneManager:
             timeout=timeout,
             check=False,
         )
+
+    def _run_rclone_with_progress(
+        self,
+        args: List[str],
+        sync_id: str,
+        sync_name: str,
+        operation: str,
+        timeout: int = 600,
+    ) -> subprocess.CompletedProcess:
+        rclone_bin = self.ensure_rclone()
+        cmd = [
+            rclone_bin,
+            "--config",
+            self.rclone_conf_path,
+            *args,
+            "--stats",
+            "300ms",
+            "--stats-one-line",
+            "-v",
+        ]
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        output_lines: List[str] = []
+        last_pct = 0
+        start_ts = time.time()
+        try:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                output_lines.append(line)
+                if time.time() - start_ts > timeout:
+                    proc.kill()
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+                clean = re.sub(r"^\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}\s+(INFO|NOTICE|ERROR)\s*:\s*", "", line).strip()
+                m = re.search(r"(\d+)%", line)
+                if m:
+                    last_pct = max(last_pct, min(100, int(m.group(1))))
+                if clean:
+                    self.set_progress(sync_id, sync_name, operation, last_pct, clean)
+            proc.wait(timeout=15)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            raise
+        return subprocess.CompletedProcess(cmd, proc.returncode or 0, stdout="".join(output_lines), stderr="")
 
     def start_auth(self, provider: str) -> Dict[str, Any]:
         if provider not in PROVIDER_CONFIG:
@@ -382,43 +486,53 @@ class RcloneManager:
         remote = PROVIDER_CONFIG[provider]["remote"]
         drive_folder = str(mapping.get("driveFolder") or "").strip("/")
         ignored_paths = mapping.get("ignoredPaths") or []
+        sync_name = str(mapping.get("name") or "Sync")
 
-        self._run_rclone(["mkdir", f"{remote}:{drive_folder}"], timeout=30)
-        exclude_args = self._build_exclude_args(local_path, ignored_paths)
-        res = self._run_rclone(
-            ["sync", local_path, f"{remote}:{drive_folder}", *exclude_args],
-            timeout=600,
-        )
-        if res.returncode != 0:
-            return {"ok": False, "error": res.stderr or res.stdout or "Error durante Push con rclone"}
+        self.set_progress(sync_id, sync_name, "push", 0, "Preparing upload...")
+        try:
+            self._run_rclone(["mkdir", f"{remote}:{drive_folder}"], timeout=30)
+            exclude_args = self._build_exclude_args(local_path, ignored_paths)
+            res = self._run_rclone_with_progress(
+                ["sync", local_path, f"{remote}:{drive_folder}", *exclude_args],
+                sync_id=sync_id,
+                sync_name=sync_name,
+                operation="push",
+                timeout=600,
+            )
+            if res.returncode != 0:
+                return {"ok": False, "error": res.stderr or res.stdout or "Error durante Push con rclone"}
 
-        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        file_count = self._count_files(local_path, ignored_paths)
-        device_name = cfg.get("deviceName") or "Steam Deck"
+            now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            file_count = self._count_files(local_path, ignored_paths)
+            device_name = cfg.get("deviceName") or "Steam Deck"
 
-        mapping["lastPushDevice"] = device_name
-        mapping["lastPushAt"] = now_iso
-        mapping["fileCount"] = file_count
-        cfg["localMappings"][sync_id] = mapping
-        self.save_config(cfg)
+            mapping["lastPushDevice"] = device_name
+            mapping["lastPushAt"] = now_iso
+            mapping["fileCount"] = file_count
+            cfg["localMappings"][sync_id] = mapping
+            self.save_config(cfg)
 
-        cloud_meta = {
-            "id": sync_id,
-            "name": mapping.get("name"),
-            "provider": provider,
-            "driveFolder": drive_folder,
-            "lastPushDevice": device_name,
-            "lastPushAt": now_iso,
-            "fileCount": file_count,
-            "ignoredPaths": ignored_paths,
-            "coverDataUrl": mapping.get("coverDataUrl"),
-            "isGameSave": bool(mapping.get("isGameSave", True)),
-            "gameSource": mapping.get("gameSource"),
-            "emulatorName": mapping.get("emulatorName"),
-            "systemName": mapping.get("systemName"),
-        }
-        self.save_cloud_metadata(provider, cloud_meta)
-        return {"ok": True, "mapping": mapping}
+            self.set_progress(sync_id, sync_name, "push", 95, "Updating metadata...")
+            cloud_meta = {
+                "id": sync_id,
+                "name": mapping.get("name"),
+                "provider": provider,
+                "driveFolder": drive_folder,
+                "lastPushDevice": device_name,
+                "lastPushAt": now_iso,
+                "fileCount": file_count,
+                "ignoredPaths": ignored_paths,
+                "coverDataUrl": mapping.get("coverDataUrl"),
+                "isGameSave": bool(mapping.get("isGameSave", True)),
+                "gameSource": mapping.get("gameSource"),
+                "emulatorName": mapping.get("emulatorName"),
+                "systemName": mapping.get("systemName"),
+            }
+            self.save_cloud_metadata(provider, cloud_meta)
+            self.set_progress(sync_id, sync_name, "push", 100, "Done")
+            return {"ok": True, "mapping": mapping}
+        finally:
+            self.clear_progress()
 
     def pull_sync(self, sync_id: str) -> Dict[str, Any]:
         cfg = self.load_config()
@@ -432,29 +546,38 @@ class RcloneManager:
         remote = PROVIDER_CONFIG[provider]["remote"]
         drive_folder = str(mapping.get("driveFolder") or "").strip("/")
         ignored_paths = mapping.get("ignoredPaths") or []
+        sync_name = str(mapping.get("name") or "Sync")
 
-        # Actualizar metadata desde la nube antes de hacer Pull
-        cloud_metas = self.list_cloud_metadatas()
-        cloud_match = next((m for m in cloud_metas if m.get("id") == sync_id), None)
+        self.set_progress(sync_id, sync_name, "pull", 0, "Preparing download...")
+        try:
+            # Actualizar metadata desde la nube antes de hacer Pull
+            cloud_metas = self.list_cloud_metadatas()
+            cloud_match = next((m for m in cloud_metas if m.get("id") == sync_id), None)
 
-        exclude_args = self._build_exclude_args(local_path, ignored_paths)
-        res = self._run_rclone(
-            ["sync", f"{remote}:{drive_folder}", local_path, *exclude_args],
-            timeout=600,
-        )
-        if res.returncode != 0:
-            return {"ok": False, "error": res.stderr or res.stdout or "Error durante Pull con rclone"}
+            exclude_args = self._build_exclude_args(local_path, ignored_paths)
+            res = self._run_rclone_with_progress(
+                ["sync", f"{remote}:{drive_folder}", local_path, *exclude_args],
+                sync_id=sync_id,
+                sync_name=sync_name,
+                operation="pull",
+                timeout=600,
+            )
+            if res.returncode != 0:
+                return {"ok": False, "error": res.stderr or res.stdout or "Error durante Pull con rclone"}
 
-        if cloud_match:
-            mapping["lastPushDevice"] = cloud_match.get("lastPushDevice", mapping.get("lastPushDevice"))
-            mapping["lastPushAt"] = cloud_match.get("lastPushAt", mapping.get("lastPushAt"))
-            mapping["fileCount"] = cloud_match.get("fileCount", mapping.get("fileCount"))
-            if cloud_match.get("coverDataUrl"):
-                mapping["coverDataUrl"] = cloud_match["coverDataUrl"]
-            cfg["localMappings"][sync_id] = mapping
-            self.save_config(cfg)
+            if cloud_match:
+                mapping["lastPushDevice"] = cloud_match.get("lastPushDevice", mapping.get("lastPushDevice"))
+                mapping["lastPushAt"] = cloud_match.get("lastPushAt", mapping.get("lastPushAt"))
+                mapping["fileCount"] = cloud_match.get("fileCount", mapping.get("fileCount"))
+                if cloud_match.get("coverDataUrl"):
+                    mapping["coverDataUrl"] = cloud_match["coverDataUrl"]
+                cfg["localMappings"][sync_id] = mapping
+                self.save_config(cfg)
 
-        return {"ok": True, "mapping": mapping}
+            self.set_progress(sync_id, sync_name, "pull", 100, "Done")
+            return {"ok": True, "mapping": mapping}
+        finally:
+            self.clear_progress()
 
     def delete_sync(self, sync_id: str, delete_from_cloud: bool) -> Dict[str, Any]:
         cfg = self.load_config()

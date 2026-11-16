@@ -82,3 +82,14 @@ export interface PluginState {
   connectedServices: Record<CloudProvider, boolean>;
   localSyncs: LocalSync[];
 }
+
+export interface SyncProgress {
+  active: boolean;
+  syncId: string | null;
+  syncName: string;
+  operation: "push" | "pull" | "";
+  percent: number;
+  detail: string;
+  index: number;
+  total: number;
+}

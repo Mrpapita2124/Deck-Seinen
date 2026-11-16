@@ -31,8 +31,10 @@ import {
   type CloudProvider,
   type LocalSync,
   type PluginState,
+  type SyncProgress,
 } from "../types";
 import { DeleteSyncModal } from "./DeleteSyncModal";
+import { SyncProgressBar } from "./SyncProgressBar";
 
 function PathPreviewModal({
   closeModal,
@@ -93,6 +95,7 @@ export function QamPanel() {
 
   // Estados vista Sincronizaciones
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Estados vista Servicios (inline, no sobrepuesta)
@@ -128,6 +131,28 @@ export function QamPanel() {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!busyId) {
+      setSyncProgress(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const p = await api.getSyncProgress();
+        if (!cancelled) setSyncProgress(p);
+      } catch {
+        // ignore
+      }
+    };
+    poll();
+    const id = window.setInterval(poll, 300);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [busyId]);
 
   // --- Acciones de Sesiones / Servicios ---
   const startLogin = async (provider: CloudProvider) => {
@@ -317,7 +342,13 @@ export function QamPanel() {
             </PanelSectionRow>
           )}
 
-          {statusMsg && (
+          {syncProgress?.active && (
+          <PanelSectionRow>
+            <SyncProgressBar progress={syncProgress} compact />
+          </PanelSectionRow>
+        )}
+
+        {statusMsg && (
             <PanelSectionRow>
               <div
                 style={{
@@ -571,6 +602,12 @@ export function QamPanel() {
             </DialogButton>
           </Focusable>
         </PanelSectionRow>
+
+        {syncProgress?.active && (
+          <PanelSectionRow>
+            <SyncProgressBar progress={syncProgress} compact />
+          </PanelSectionRow>
+        )}
 
         {statusMsg && (
           <PanelSectionRow>

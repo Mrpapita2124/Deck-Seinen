@@ -141,40 +141,48 @@ class Plugin:
             decky.logger.exception(f"Error en detect_cloud_game_paths: {exc}")
             return {}
 
+    async def get_sync_progress(self) -> Dict[str, Any]:
+        return self.manager.get_progress()
+
     async def link_and_pull_syncs(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """items: [{ meta, localPath }]"""
         cfg = self.manager.load_config()
         mappings = cfg.get("localMappings") or {}
         results = []
+        total = len(items)
 
-        for item in items:
-            meta = item.get("meta") or {}
-            local_path = (item.get("localPath") or "").strip()
-            sync_id = str(meta.get("id") or "")
-            if not sync_id or not local_path:
-                continue
+        try:
+            for idx, item in enumerate(items, start=1):
+                self.manager.set_batch_context(idx, total)
+                meta = item.get("meta") or {}
+                local_path = (item.get("localPath") or "").strip()
+                sync_id = str(meta.get("id") or "")
+                if not sync_id or not local_path:
+                    continue
 
-            mappings[sync_id] = {
-                "id": sync_id,
-                "name": meta.get("name") or "Juego",
-                "provider": meta.get("provider") or "gdrive",
-                "driveFolder": meta.get("driveFolder") or "",
-                "localPath": local_path,
-                "ignoredPaths": meta.get("ignoredPaths") or [],
-                "isGameSave": True,
-                "gameSource": meta.get("gameSource"),
-                "emulatorName": meta.get("emulatorName"),
-                "systemName": meta.get("systemName"),
-                "coverDataUrl": meta.get("coverDataUrl"),
-                "lastPushDevice": meta.get("lastPushDevice") or "",
-                "lastPushAt": meta.get("lastPushAt") or "",
-                "fileCount": meta.get("fileCount") or 0,
-            }
-            cfg["localMappings"] = mappings
-            self.manager.save_config(cfg)
+                mappings[sync_id] = {
+                    "id": sync_id,
+                    "name": meta.get("name") or "Juego",
+                    "provider": meta.get("provider") or "gdrive",
+                    "driveFolder": meta.get("driveFolder") or "",
+                    "localPath": local_path,
+                    "ignoredPaths": meta.get("ignoredPaths") or [],
+                    "isGameSave": True,
+                    "gameSource": meta.get("gameSource"),
+                    "emulatorName": meta.get("emulatorName"),
+                    "systemName": meta.get("systemName"),
+                    "coverDataUrl": meta.get("coverDataUrl"),
+                    "lastPushDevice": meta.get("lastPushDevice") or "",
+                    "lastPushAt": meta.get("lastPushAt") or "",
+                    "fileCount": meta.get("fileCount") or 0,
+                }
+                cfg["localMappings"] = mappings
+                self.manager.save_config(cfg)
 
-            pull_res = await asyncio.to_thread(self.manager.pull_sync, sync_id)
-            results.append({"id": sync_id, "ok": pull_res.get("ok", False), "error": pull_res.get("error")})
+                pull_res = await asyncio.to_thread(self.manager.pull_sync, sync_id)
+                results.append({"id": sync_id, "ok": pull_res.get("ok", False), "error": pull_res.get("error")})
+        finally:
+            self.manager.clear_batch_context()
 
         return {"ok": True, "results": results, "state": await self.get_state()}
 
@@ -186,42 +194,47 @@ class Plugin:
         cfg = self.manager.load_config()
         mappings = cfg.get("localMappings") or {}
         results = []
+        total = len(items)
 
-        for item in items:
-            game = item.get("game") or {}
-            provider = item.get("provider") or "gdrive"
-            name = str(game.get("name") or "Juego").strip()
-            local_path = str(game.get("localPath") or "").strip()
-            if not local_path:
-                continue
+        try:
+            for idx, item in enumerate(items, start=1):
+                self.manager.set_batch_context(idx, total)
+                game = item.get("game") or {}
+                provider = item.get("provider") or "gdrive"
+                name = str(game.get("name") or "Juego").strip()
+                local_path = str(game.get("localPath") or "").strip()
+                if not local_path:
+                    continue
 
-            sync_id = str(uuid.uuid4())
-            drive_folder = f"{GAME_SAVES_ROOT}/{_safe_folder_name(name)}"
-            cover_data_url = None
-            if game.get("coverUrl"):
-                cover_data_url = await asyncio.to_thread(download_image_as_data_url, game["coverUrl"])
+                sync_id = str(uuid.uuid4())
+                drive_folder = f"{GAME_SAVES_ROOT}/{_safe_folder_name(name)}"
+                cover_data_url = None
+                if game.get("coverUrl"):
+                    cover_data_url = await asyncio.to_thread(download_image_as_data_url, game["coverUrl"])
 
-            mappings[sync_id] = {
-                "id": sync_id,
-                "name": name,
-                "provider": provider,
-                "driveFolder": drive_folder,
-                "localPath": local_path,
-                "ignoredPaths": [],
-                "isGameSave": True,
-                "gameSource": game.get("source"),
-                "emulatorName": game.get("emulatorName"),
-                "systemName": game.get("systemName"),
-                "coverDataUrl": cover_data_url,
-                "lastPushDevice": cfg.get("deviceName") or "Steam Deck",
-                "lastPushAt": "",
-                "fileCount": 0,
-            }
-            cfg["localMappings"] = mappings
-            self.manager.save_config(cfg)
+                mappings[sync_id] = {
+                    "id": sync_id,
+                    "name": name,
+                    "provider": provider,
+                    "driveFolder": drive_folder,
+                    "localPath": local_path,
+                    "ignoredPaths": [],
+                    "isGameSave": True,
+                    "gameSource": game.get("source"),
+                    "emulatorName": game.get("emulatorName"),
+                    "systemName": game.get("systemName"),
+                    "coverDataUrl": cover_data_url,
+                    "lastPushDevice": cfg.get("deviceName") or "Steam Deck",
+                    "lastPushAt": "",
+                    "fileCount": 0,
+                }
+                cfg["localMappings"] = mappings
+                self.manager.save_config(cfg)
 
-            push_res = await asyncio.to_thread(self.manager.push_sync, sync_id)
-            results.append({"id": sync_id, "ok": push_res.get("ok", False), "error": push_res.get("error")})
+                push_res = await asyncio.to_thread(self.manager.push_sync, sync_id)
+                results.append({"id": sync_id, "ok": push_res.get("ok", False), "error": push_res.get("error")})
+        finally:
+            self.manager.clear_batch_context()
 
         return {"ok": True, "results": results, "state": await self.get_state()}
 
