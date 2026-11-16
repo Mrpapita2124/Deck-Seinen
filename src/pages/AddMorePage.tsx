@@ -33,7 +33,6 @@ import {
 } from "../types";
 
 type MainTab = "sync_here" | "upload";
-type SourceFilter = "all" | "pc" | "emulation";
 
 function DetectedPathViewerModal({
   closeModal,
@@ -98,7 +97,6 @@ function DetectedPathViewerModal({
 export function AddMorePage() {
   const [, , tr] = useLang();
   const [activeTab, setActiveTab] = useState<MainTab>("sync_here");
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [connectedServices, setConnectedServices] = useState<Record<CloudProvider, boolean>>({
     gdrive: false,
     onedrive: false,
@@ -206,34 +204,6 @@ export function AddMorePage() {
       loadLocalGames();
     }
   }, [activeTab]);
-
-  // Filtrado All / Pc Games / Emulation
-  const filterBySource = <T extends { gameSource?: string; source?: string; emulatorName?: string | null }>(
-    list: T[]
-  ): T[] => {
-    if (sourceFilter === "all") return list;
-    if (sourceFilter === "emulation") {
-      return list.filter(
-        (it) =>
-          it.source === "emulation" ||
-          it.gameSource === "emulation" ||
-          it.gameSource === "emuatlas" ||
-          it.gameSource === "emuvault" ||
-          Boolean(it.emulatorName)
-      );
-    }
-    return list.filter(
-      (it) =>
-        it.source !== "emulation" &&
-        it.gameSource !== "emulation" &&
-        it.gameSource !== "emuatlas" &&
-        it.gameSource !== "emuvault" &&
-        !it.emulatorName
-    );
-  };
-
-  const filteredCloudGames = filterBySource(cloudGames);
-  const filteredLocalGames = filterBySource(localGames);
 
   // --- Handlers Sync here ---
   const toggleCloudSelect = (id: string) => {
@@ -465,36 +435,6 @@ export function AddMorePage() {
           overflow: "hidden",
         }}
       >
-        {/* Filtros All | Pc Games | Emulation */}
-        {!(activeTab === "upload" && uploadStep === "manual") && (
-          <Focusable
-            flow-children="horizontal"
-            style={{ display: "flex", gap: "8px", marginBottom: "16px" }}
-          >
-            {(
-              [
-                { id: "all", label: "All" },
-                { id: "pc", label: "Pc Games" },
-                { id: "emulation", label: "Emulation" },
-              ] as Array<{ id: SourceFilter; label: string }>
-            ).map((f) => (
-              <DialogButton
-                key={f.id}
-                onClick={() => setSourceFilter(f.id)}
-                style={{
-                  minWidth: "100px",
-                  padding: "6px 14px",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  borderBottom: sourceFilter === f.id ? "3px solid #38bdf8" : "3px solid transparent",
-                }}
-              >
-                {f.label}
-              </DialogButton>
-            ))}
-          </Focusable>
-        )}
-
         {errorMsg && (
           <div
             style={{
@@ -518,11 +458,11 @@ export function AddMorePage() {
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
                   {tr("Searching for game saves in your cloud...", "Buscando saves de videojuegos en tu nube...")}
                 </div>
-              ) : filteredCloudGames.length === 0 ? (
+              ) : cloudGames.length === 0 ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
                   {tr(
-                    "No pending game saves were found in your cloud for this filter.",
-                    "No se encontraron saves de videojuegos pendientes en tu nube para este filtro."
+                    "No pending game saves were found in your cloud.",
+                    "No se encontraron saves de videojuegos pendientes en tu nube."
                   )}
                 </div>
               ) : (
@@ -533,7 +473,7 @@ export function AddMorePage() {
                     gap: "12px",
                   }}
                 >
-                  {filteredCloudGames.map((game) => {
+                  {cloudGames.map((game) => {
                     const selected = selectedCloudIds.includes(game.id);
                     return (
                       <DialogButton
@@ -793,11 +733,11 @@ export function AddMorePage() {
                     "Escaneando saves de juegos y emuladores en tu Steam Deck..."
                   )}
                 </div>
-              ) : filteredLocalGames.length === 0 ? (
+              ) : localGames.length === 0 ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
                   {tr(
-                    "No saves were automatically detected for this filter. You can use ",
-                    "No se detectaron saves automáticamente para este filtro. Puedes usar "
+                    "No saves were automatically detected. You can use ",
+                    "No se detectaron saves automáticamente. Puedes usar "
                   )}
                   <strong>Add manual</strong>.
                 </div>
@@ -809,7 +749,7 @@ export function AddMorePage() {
                     gap: "12px",
                   }}
                 >
-                  {filteredLocalGames.map((game) => {
+                  {localGames.map((game) => {
                     const selected = selectedLocalIds.includes(game.id);
                     return (
                       <DialogButton
