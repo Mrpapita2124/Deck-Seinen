@@ -1,4 +1,3 @@
-import configparser
 import json
 import os
 import re
@@ -113,58 +112,14 @@ class RcloneManager:
         if not os.path.isfile(self.rclone_conf_path):
             return result
         try:
-            cp = configparser.ConfigParser(interpolation=None)
-            cp.read(self.rclone_conf_path, encoding="utf-8")
+            with open(self.rclone_conf_path, "r", encoding="utf-8") as f:
+                content = f.read()
             for provider, info in PROVIDER_CONFIG.items():
-                remote = info["remote"]
-                if cp.has_section(remote):
-                    raw_token = cp.get(remote, "token", fallback="").strip()
-                    if not raw_token:
-                        continue
-                    try:
-                        tok = json.loads(raw_token)
-                        if isinstance(tok, dict) and (tok.get("access_token") or tok.get("refresh_token")):
-                            result[provider] = True
-                    except Exception:
-                        pass
+                if f"[{info['remote']}]" in content:
+                    result[provider] = True
         except Exception:
             pass
         return result
-
-    def _is_auth_error(self, text: str) -> bool:
-        low = (text or "").lower()
-        markers = (
-            "invalid_grant",
-            "token expired",
-            "couldn't fetch token",
-            "empty token",
-            "failed to configure",
-            "unauthenticated",
-            "401 unauthorized",
-            "invalid_token",
-            "expired or revoked",
-            "didn't find section in config file",
-        )
-        return any(m in low for m in markers)
-
-    def verify_connected_services(self) -> Dict[str, bool]:
-        """Verifica con rclone que los tokens guardados sigan siendo válidos; si alguno está roto/revocado lo limpia."""
-        current = self.get_connected_services()
-        for provider, is_conn in list(current.items()):
-            if not is_conn:
-                continue
-            remote = PROVIDER_CONFIG[provider]["remote"]
-            try:
-                res = self._run_rclone(["lsd", f"{remote}:", "--max-depth", "1"], timeout=15)
-                if res.returncode != 0:
-                    err_txt = (res.stderr or res.stdout or "").strip()
-                    if self._is_auth_error(err_txt):
-                        self._log(f"Sesión inválida/expirada para {provider}, limpiando remoto {remote}: {err_txt}")
-                        self._run_rclone(["config", "delete", remote], timeout=15)
-                        current[provider] = False
-            except Exception as exc:
-                self._log(f"Error verificando {provider}: {exc}")
-        return current
 
     def _run_rclone(self, args: List[str], timeout: int = 120) -> subprocess.CompletedProcess:
         rclone_bin = self.ensure_rclone()
@@ -327,18 +282,8 @@ class RcloneManager:
             if not is_conn:
                 continue
             remote = PROVIDER_CONFIG[provider]["remote"]
-            try:
-                res = self._run_rclone(["lsjson", f"{remote}:{METADATA_FOLDER}"], timeout=45)
-            except Exception as exc:
-                self._log(f"Error ejecutando lsjson para {provider}: {exc}")
-                continue
-            if res.returncode != 0:
-                err_txt = (res.stderr or res.stdout or "").strip()
-                if self._is_auth_error(err_txt):
-                    self._log(f"Sesión inválida al listar {provider}, limpiando remoto {remote}: {err_txt}")
-                    self._run_rclone(["config", "delete", remote], timeout=15)
-                continue
-            if not res.stdout.strip():
+            res = self._run_rclone(["lsjson", f"{remote}:{METADATA_FOLDER}"], timeout=45)
+            if res.returncode != 0 or not res.stdout.strip():
                 continue
             try:
                 entries = json.loads(res.stdout)

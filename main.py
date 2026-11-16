@@ -39,7 +39,6 @@ class Plugin:
             plugin_dir=decky.DECKY_PLUGIN_DIR,
             logger=decky.logger,
         )
-        asyncio.create_task(asyncio.to_thread(self.manager.verify_connected_services))
         decky.logger.info("DeckSeinen backend iniciado.")
 
     async def _unload(self):
@@ -61,7 +60,6 @@ class Plugin:
 
     async def refresh_local_statuses(self) -> Dict[str, Any]:
         """Consulta metadata en la nube únicamente para las syncs ya vinculadas en esta Steam Deck."""
-        await asyncio.to_thread(self.manager.verify_connected_services)
         cfg = self.manager.load_config()
         mappings = cfg.get("localMappings") or {}
         if not mappings:
