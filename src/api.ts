@@ -16,16 +16,12 @@ export const api = {
 
   startAuth: callable<
     [provider: CloudProvider],
-    { ok: boolean; authUrl?: string | null; qrUrl?: string | null; done?: boolean; error?: string | null }
+    { ok: boolean; authUrl?: string | null; done?: boolean; error?: string | null }
   >("start_auth"),
   pollAuth: callable<
     [provider: CloudProvider],
-    { done: boolean; connected: boolean; authUrl?: string | null; qrUrl?: string | null; error?: string | null }
+    { done: boolean; connected: boolean; authUrl?: string | null; error?: string | null }
   >("poll_auth"),
-  completeAuthRedirect: callable<
-    [provider: CloudProvider, redirectUrl: string],
-    { ok: boolean; connected?: boolean; error?: string }
-  >("complete_auth_redirect"),
   cancelAuth: callable<[provider: CloudProvider], { ok: boolean }>("cancel_auth"),
   logoutProvider: callable<
     [provider: CloudProvider],

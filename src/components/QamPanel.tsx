@@ -7,7 +7,6 @@ import {
   TextField,
   showModal,
 } from "@decky/ui";
-import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import {
   FaArrowLeft,
@@ -95,10 +94,6 @@ export function QamPanel() {
   const [savingDevice, setSavingDevice] = useState(false);
   const [authProvider, setAuthProvider] = useState<CloudProvider | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [redirectUrlInput, setRedirectUrlInput] = useState("");
-  const [completingRedirect, setCompletingRedirect] = useState(false);
   const pollTimer = useRef<number | null>(null);
 
   const loadState = async (refreshCloud = false) => {
@@ -128,24 +123,11 @@ export function QamPanel() {
     };
   }, []);
 
-  useEffect(() => {
-    const targetQr = qrUrl || authUrl;
-    if (!targetQr) {
-      setQrDataUrl(null);
-      return;
-    }
-    QRCode.toDataURL(targetQr, { width: 176, margin: 1 })
-      .then((url) => setQrDataUrl(url))
-      .catch(() => setQrDataUrl(null));
-  }, [qrUrl, authUrl]);
-
   // --- Acciones de Sesiones / Servicios ---
   const startLogin = async (provider: CloudProvider) => {
     setStatusMsg(null);
     setAuthProvider(provider);
     setAuthUrl(null);
-    setQrUrl(null);
-    setRedirectUrlInput("");
     try {
       const res = await api.startAuth(provider);
       if (!res.ok) {
@@ -154,18 +136,14 @@ export function QamPanel() {
         return;
       }
       if (res.authUrl) setAuthUrl(res.authUrl);
-      if (res.qrUrl) setQrUrl(res.qrUrl);
       if (pollTimer.current) window.clearInterval(pollTimer.current);
       pollTimer.current = window.setInterval(async () => {
         const poll = await api.pollAuth(provider);
         if (poll.authUrl) setAuthUrl(poll.authUrl);
-        if (poll.qrUrl) setQrUrl(poll.qrUrl);
         if (poll.done) {
           if (pollTimer.current) window.clearInterval(pollTimer.current);
           setAuthProvider(null);
           setAuthUrl(null);
-          setQrUrl(null);
-          setRedirectUrlInput("");
           if (poll.error && !poll.connected) {
             setStatusMsg(poll.error);
           }
@@ -183,28 +161,6 @@ export function QamPanel() {
     Navigation.NavigateToExternalWeb(url);
   };
 
-  const handleCompleteRedirectUrl = async () => {
-    if (!authProvider || !redirectUrlInput.trim()) return;
-    setCompletingRedirect(true);
-    setStatusMsg(null);
-    try {
-      const res = await api.completeAuthRedirect(authProvider, redirectUrlInput.trim());
-      if (!res.ok && res.error) {
-        setStatusMsg(res.error);
-      } else {
-        if (pollTimer.current) window.clearInterval(pollTimer.current);
-        setAuthProvider(null);
-        setAuthUrl(null);
-        setRedirectUrlInput("");
-        await loadState(false);
-      }
-    } catch (err: any) {
-      setStatusMsg(String(err?.message || err));
-    } finally {
-      setCompletingRedirect(false);
-    }
-  };
-
   const cancelLogin = async () => {
     if (pollTimer.current) window.clearInterval(pollTimer.current);
     if (authProvider) {
@@ -212,8 +168,6 @@ export function QamPanel() {
     }
     setAuthProvider(null);
     setAuthUrl(null);
-    setQrUrl(null);
-    setRedirectUrlInput("");
   };
 
   const handleLogout = async (provider: CloudProvider) => {
@@ -473,54 +427,6 @@ export function QamPanel() {
                             <FaExternalLinkAlt size={11} />
                             <span>Abrir navegador de Steam</span>
                           </DialogButton>
-
-                          {qrDataUrl && (
-                            <div
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: "4px",
-                                background: "#fff",
-                                padding: "8px",
-                                borderRadius: "8px",
-                              }}
-                            >
-                              <img
-                                src={qrDataUrl}
-                                alt="QR de inicio de sesión"
-                                style={{ width: "148px", height: "148px" }}
-                              />
-                              <span style={{ fontSize: "10px", color: "#111", textAlign: "center" }}>
-                                Escanea con tu celular si prefieres
-                              </span>
-                            </div>
-                          )}
-
-                          <div style={{ fontSize: "10px", opacity: 0.78, lineHeight: 1.3 }}>
-                            Si usaste el QR en el celular y al final te manda a{" "}
-                            <code>127.0.0.1</code>, pega esa URL aquí:
-                          </div>
-                          <TextField
-                            value={redirectUrlInput}
-                            onChange={(e) => setRedirectUrlInput(e.target.value)}
-                            placeholder="http://127.0.0.1:53682/?code=..."
-                          />
-                          {redirectUrlInput.trim() && (
-                            <DialogButton
-                              disabled={completingRedirect}
-                              onClick={handleCompleteRedirectUrl}
-                              style={{
-                                width: "100%",
-                                minWidth: 0,
-                                padding: "6px 8px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {completingRedirect ? "Validando..." : "Completar sesión"}
-                            </DialogButton>
-                          )}
                         </>
                       )}
 

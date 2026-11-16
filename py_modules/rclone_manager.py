@@ -1,17 +1,13 @@
-import html
-import http.client
-import http.server
+import configparser
 import json
 import os
 import re
 import shutil
-import socket
 import stat
 import subprocess
 import tempfile
 import threading
 import time
-import urllib.parse
 import urllib.request
 import zipfile
 from typing import Any, Dict, List, Optional
@@ -117,14 +113,58 @@ class RcloneManager:
         if not os.path.isfile(self.rclone_conf_path):
             return result
         try:
-            with open(self.rclone_conf_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            cp = configparser.ConfigParser(interpolation=None)
+            cp.read(self.rclone_conf_path, encoding="utf-8")
             for provider, info in PROVIDER_CONFIG.items():
-                if f"[{info['remote']}]" in content:
-                    result[provider] = True
+                remote = info["remote"]
+                if cp.has_section(remote):
+                    raw_token = cp.get(remote, "token", fallback="").strip()
+                    if not raw_token:
+                        continue
+                    try:
+                        tok = json.loads(raw_token)
+                        if isinstance(tok, dict) and (tok.get("access_token") or tok.get("refresh_token")):
+                            result[provider] = True
+                    except Exception:
+                        pass
         except Exception:
             pass
         return result
+
+    def _is_auth_error(self, text: str) -> bool:
+        low = (text or "").lower()
+        markers = (
+            "invalid_grant",
+            "token expired",
+            "couldn't fetch token",
+            "empty token",
+            "failed to configure",
+            "unauthenticated",
+            "401 unauthorized",
+            "invalid_token",
+            "expired or revoked",
+            "didn't find section in config file",
+        )
+        return any(m in low for m in markers)
+
+    def verify_connected_services(self) -> Dict[str, bool]:
+        """Verifica con rclone que los tokens guardados sigan siendo válidos; si alguno está roto/revocado lo limpia."""
+        current = self.get_connected_services()
+        for provider, is_conn in list(current.items()):
+            if not is_conn:
+                continue
+            remote = PROVIDER_CONFIG[provider]["remote"]
+            try:
+                res = self._run_rclone(["lsd", f"{remote}:", "--max-depth", "1"], timeout=15)
+                if res.returncode != 0:
+                    err_txt = (res.stderr or res.stdout or "").strip()
+                    if self._is_auth_error(err_txt):
+                        self._log(f"Sesión inválida/expirada para {provider}, limpiando remoto {remote}: {err_txt}")
+                        self._run_rclone(["config", "delete", remote], timeout=15)
+                        current[provider] = False
+            except Exception as exc:
+                self._log(f"Error verificando {provider}: {exc}")
+        return current
 
     def _run_rclone(self, args: List[str], timeout: int = 120) -> subprocess.CompletedProcess:
         rclone_bin = self.ensure_rclone()
@@ -136,144 +176,6 @@ class RcloneManager:
             timeout=timeout,
             check=False,
         )
-
-    def _get_lan_ip(self) -> Optional[str]:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            if ip and not ip.startswith("127."):
-                return ip
-        except Exception:
-            pass
-        return None
-
-    def _start_lan_auth_proxy(self, target_port: int) -> Optional[Dict[str, Any]]:
-        lan_ip = self._get_lan_ip()
-        if not lan_ip:
-            return None
-
-        def _send_html(req_handler: http.server.BaseHTTPRequestHandler, status: int, content: str) -> None:
-            data = content.encode("utf-8")
-            req_handler.send_response(status)
-            req_handler.send_header("Content-Type", "text/html; charset=utf-8")
-            req_handler.send_header("Content-Length", str(len(data)))
-            req_handler.end_headers()
-            req_handler.wfile.write(data)
-
-        class _ProxyHandler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self_req):
-                try:
-                    conn = http.client.HTTPConnection("127.0.0.1", target_port, timeout=15)
-                    conn.request("GET", self_req.path)
-                    resp = conn.getresponse()
-                    body = resp.read()
-                    location = resp.getheader("Location")
-                    headers_list = resp.getheaders()
-                    conn.close()
-
-                    if self_req.path.startswith("/auth") and location:
-                        escaped_url = html.escape(location, quote=True)
-                        page = f"""<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DeckSeinen - Iniciar sesión</title>
-<style>
-  body{{margin:0;padding:20px;font-family:system-ui,-apple-system,sans-serif;background:#0e141b;color:#f1f5f9;display:flex;justify-content:center;}}
-  .card{{width:100%;max-width:440px;background:#1b2430;border:1px solid #2d3b4e;border-radius:14px;padding:20px;box-sizing:border-box;}}
-  h1{{margin:0 0 8px;font-size:20px;}}
-  p{{font-size:14px;line-height:1.45;color:#cbd5e1;}}
-  .btn{{display:block;width:100%;box-sizing:border-box;text-align:center;padding:13px 16px;border-radius:10px;background:#1a9fff;color:#fff;font-weight:700;text-decoration:none;border:0;font-size:15px;cursor:pointer;margin:14px 0;}}
-  .btn-ok{{background:#10b981;color:#052e16;}}
-  input{{width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:14px;margin-top:8px;}}
-  code{{background:#0f172a;padding:2px 5px;border-radius:4px;color:#38bdf8;}}
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>DeckSeinen</h1>
-  <p><strong>Paso 1:</strong> Abre el inicio de sesión en una pestaña nueva:</p>
-  <a class="btn" href="{escaped_url}" target="_blank" rel="noopener">Abrir inicio de sesión</a>
-  <p><strong>Paso 2:</strong> Al autorizar, tu navegador dirá que no se puede acceder a <code>127.0.0.1</code>. <strong>Es normal</strong>: copia esa URL de la barra de direcciones, vuelve aquí y pégala abajo:</p>
-  <form method="POST" action="/complete">
-    <input type="text" name="url" placeholder="http://127.0.0.1:53682/?code=..." required />
-    <button class="btn btn-ok" type="submit">Completar sesión en Steam Deck</button>
-  </form>
-</div>
-</body>
-</html>"""
-                        _send_html(self_req, 200, page)
-                        return
-
-                    self_req.send_response(resp.status)
-                    for k, v in headers_list:
-                        if k.lower() in ("transfer-encoding", "connection", "content-length"):
-                            continue
-                        self_req.send_header(k, v)
-                    self_req.send_header("Content-Length", str(len(body)))
-                    self_req.end_headers()
-                    self_req.wfile.write(body)
-                except Exception as exc:
-                    self_req.send_response(502)
-                    self_req.end_headers()
-                    self_req.wfile.write(str(exc).encode("utf-8"))
-
-            def do_POST(self_req):
-                if self_req.path != "/complete":
-                    _send_html(self_req, 404, "<h1>404</h1>")
-                    return
-                try:
-                    length = int(self_req.headers.get("Content-Length", "0"))
-                    raw = self_req.rfile.read(length).decode("utf-8", errors="replace")
-                    params = urllib.parse.parse_qs(raw)
-                    pasted = (params.get("url") or [""])[0].strip()
-                    parsed = urllib.parse.urlparse(pasted)
-                    if not parsed.query or ("code=" not in parsed.query and "error=" not in parsed.query):
-                        _send_html(
-                            self_req,
-                            400,
-                            "<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>URL inválida</h2><p>Asegúrate de copiar toda la URL que empieza con <code>http://127.0.0.1:...</code></p><a href='javascript:history.back()' style='color:#38bdf8;'>Volver</a></body></html>",
-                        )
-                        return
-                    cb_path = (parsed.path or "/") + f"?{parsed.query}"
-                    conn = http.client.HTTPConnection("127.0.0.1", target_port, timeout=15)
-                    conn.request("GET", cb_path)
-                    resp = conn.getresponse()
-                    resp.read()
-                    conn.close()
-                    if 200 <= resp.status < 400:
-                        _send_html(
-                            self_req,
-                            200,
-                            "<html><body style='background:#0e141b;color:#f1f5f9;font-family:sans-serif;padding:24px;text-align:center;'><h2 style='color:#34d399;'>¡Sesión iniciada en Steam Deck!</h2><p>Ya puedes cerrar esta pestaña y volver a tu Steam Deck.</p></body></html>",
-                        )
-                    else:
-                        _send_html(
-                            self_req,
-                            502,
-                            f"<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>Error ({resp.status})</h2><p>No se pudo validar el código en la Steam Deck. Intenta de nuevo.</p></body></html>",
-                        )
-                except Exception as exc:
-                    _send_html(
-                        self_req,
-                        502,
-                        f"<html><body style='background:#0e141b;color:#fff;font-family:sans-serif;padding:24px;'><h2>Error</h2><p>{html.escape(str(exc))}</p></body></html>",
-                    )
-
-            def log_message(self_req, format, *args):
-                pass
-
-        try:
-            server = http.server.ThreadingHTTPServer(("0.0.0.0", 0), _ProxyHandler)
-            proxy_port = server.server_address[1]
-            t = threading.Thread(target=server.serve_forever, daemon=True)
-            t.start()
-            return {"server": server, "lan_ip": lan_ip, "port": proxy_port}
-        except Exception:
-            return None
 
     def start_auth(self, provider: str) -> Dict[str, Any]:
         if provider not in PROVIDER_CONFIG:
@@ -294,8 +196,6 @@ class RcloneManager:
         state: Dict[str, Any] = {
             "proc": proc,
             "url": None,
-            "qr_url": None,
-            "proxy": None,
             "token": None,
             "done": False,
             "error": None,
@@ -310,14 +210,7 @@ class RcloneManager:
                     output_lines.append(line)
                     url_match = re.search(r"(http://(?:127\.0\.0\.1|localhost):\d+/auth[^\s]*)", line)
                     if url_match and not state["url"]:
-                        local_url = url_match.group(1)
-                        state["url"] = local_url
-                        parsed = urllib.parse.urlparse(local_url)
-                        target_port = parsed.port or 53682
-                        proxy = self._start_lan_auth_proxy(target_port)
-                        if proxy:
-                            state["proxy"] = proxy
-                            state["qr_url"] = f"http://{proxy['lan_ip']}:{proxy['port']}{parsed.path}?{parsed.query}"
+                        state["url"] = url_match.group(1)
                 proc.wait()
                 full_out = "".join(output_lines)
                 token_match = re.search(r"(\{\"access_token\".*?\})", full_out, re.DOTALL)
@@ -336,13 +229,6 @@ class RcloneManager:
             except Exception as exc:
                 state["error"] = str(exc)
                 state["done"] = True
-            finally:
-                if state.get("proxy") and state["proxy"].get("server"):
-                    try:
-                        state["proxy"]["server"].shutdown()
-                        state["proxy"]["server"].server_close()
-                    except Exception:
-                        pass
 
         with self._auth_lock:
             self._auth_processes[provider] = state
@@ -357,27 +243,9 @@ class RcloneManager:
         return {
             "ok": True,
             "authUrl": state["url"],
-            "qrUrl": state["qr_url"] or state["url"],
             "done": state["done"],
             "error": state["error"],
         }
-
-    def complete_auth_with_redirect_url(self, provider: str, redirect_url: str) -> Dict[str, Any]:
-        url = (redirect_url or "").strip()
-        if not url.startswith("http://127.0.0.1:") and not url.startswith("http://localhost:"):
-            return {"ok": False, "error": "La URL debe comenzar con http://127.0.0.1: o http://localhost:"}
-        try:
-            urllib.request.urlopen(url, timeout=10).read()
-            # Esperar brevemente a que rclone termine de procesar el token
-            deadline = time.time() + 5.0
-            while time.time() < deadline:
-                poll = self.poll_auth(provider)
-                if poll.get("done") or poll.get("connected"):
-                    return {"ok": True, "connected": poll.get("connected", False)}
-                time.sleep(0.15)
-            return {"ok": True, "connected": self.get_connected_services().get(provider, False)}
-        except Exception as exc:
-            return {"ok": False, "error": f"No se pudo completar el enlace local: {exc}"}
 
     def _create_remote_with_token(self, provider: str, token_json: str) -> None:
         info = PROVIDER_CONFIG[provider]
@@ -428,25 +296,18 @@ class RcloneManager:
             state = self._auth_processes.get(provider)
         if not state:
             connected = self.get_connected_services().get(provider, False)
-            return {"done": True, "connected": connected, "authUrl": None, "qrUrl": None, "error": None}
+            return {"done": True, "connected": connected, "authUrl": None, "error": None}
         connected = self.get_connected_services().get(provider, False)
         return {
             "done": bool(state["done"]),
             "connected": connected,
             "authUrl": state["url"],
-            "qrUrl": state.get("qr_url") or state["url"],
             "error": state["error"],
         }
 
     def cancel_auth(self, provider: str) -> None:
         with self._auth_lock:
             state = self._auth_processes.pop(provider, None)
-        if state and state.get("proxy") and state["proxy"].get("server"):
-            try:
-                state["proxy"]["server"].shutdown()
-                state["proxy"]["server"].server_close()
-            except Exception:
-                pass
         if state and state.get("proc"):
             try:
                 state["proc"].terminate()
@@ -466,8 +327,18 @@ class RcloneManager:
             if not is_conn:
                 continue
             remote = PROVIDER_CONFIG[provider]["remote"]
-            res = self._run_rclone(["lsjson", f"{remote}:{METADATA_FOLDER}"], timeout=45)
-            if res.returncode != 0 or not res.stdout.strip():
+            try:
+                res = self._run_rclone(["lsjson", f"{remote}:{METADATA_FOLDER}"], timeout=45)
+            except Exception as exc:
+                self._log(f"Error ejecutando lsjson para {provider}: {exc}")
+                continue
+            if res.returncode != 0:
+                err_txt = (res.stderr or res.stdout or "").strip()
+                if self._is_auth_error(err_txt):
+                    self._log(f"Sesión inválida al listar {provider}, limpiando remoto {remote}: {err_txt}")
+                    self._run_rclone(["config", "delete", remote], timeout=15)
+                continue
+            if not res.stdout.strip():
                 continue
             try:
                 entries = json.loads(res.stdout)

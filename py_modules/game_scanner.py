@@ -25,13 +25,36 @@ def _home_dir() -> str:
     return os.path.expanduser("~")
 
 
+def _log_info(msg: str) -> None:
+    try:
+        import decky
+        decky.logger.info(f"[game_scanner] {msg}")
+    except Exception:
+        pass
+
+
 def _get_steam_library_paths() -> List[str]:
     home = _home_dir()
     candidates = [
         os.path.join(home, ".local", "share", "Steam"),
         os.path.join(home, ".steam", "steam"),
+        os.path.join(home, ".steam", "root"),
         os.path.join(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam"),
     ]
+    # Leer libraryfolders.vdf para detectar bibliotecas en SD / discos externos
+    for base in list(candidates):
+        vdf_path = os.path.join(base, "steamapps", "libraryfolders.vdf")
+        if os.path.isfile(vdf_path):
+            try:
+                with open(vdf_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                for m in re.finditer(r'"path"\s+"([^"]+)"', content):
+                    lib_path = m.group(1).replace("\\\\", "\\").strip()
+                    if lib_path and os.path.isdir(lib_path):
+                        candidates.append(lib_path)
+            except Exception:
+                pass
+
     # Agregar tarjetas SD / almacenamiento externo en SteamOS (/run/media)
     media_root = "/run/media"
     if os.path.isdir(media_root):
@@ -63,9 +86,11 @@ def _get_steam_library_paths() -> List[str]:
     return libs
 
 
-def _get_installed_steam_games() -> List[Dict[str, str]]:
-    games: List[Dict[str, str]] = []
-    for steamapps in _get_steam_library_paths():
+def _get_installed_steam_games() -> List[Dict[str, Any]]:
+    libs = _get_steam_library_paths()
+    games: List[Dict[str, Any]] = []
+    seen_appids = set()
+    for steamapps in libs:
         try:
             for entry in os.scandir(steamapps):
                 if entry.is_file() and entry.name.startswith("appmanifest_") and entry.name.endswith(".acf"):
@@ -77,10 +102,23 @@ def _get_installed_steam_games() -> List[Dict[str, str]]:
                         if appid_m and name_m:
                             appid = appid_m.group(1)
                             name = name_m.group(1)
+                            if appid in seen_appids:
+                                continue
                             if "Proton" in name or "Steam Linux Runtime" in name or "Steamworks" in name:
                                 continue
-                            compat = os.path.join(steamapps, "compatdata", appid, "pfx", "drive_c", "users", "steamuser")
-                            games.append({"appid": appid, "name": name, "compatUserDir": compat})
+                            seen_appids.add(appid)
+                            # En Steam Deck, un juego en SD puede tener su compatdata en el SSD interno
+                            compat_candidates: List[str] = []
+                            for lib in [steamapps, *libs]:
+                                cdir = os.path.join(lib, "compatdata", appid, "pfx", "drive_c", "users", "steamuser")
+                                if cdir not in compat_candidates:
+                                    compat_candidates.append(cdir)
+                            games.append({
+                                "appid": appid,
+                                "name": name,
+                                "compatUserDir": compat_candidates[0],
+                                "compatCandidates": compat_candidates,
+                            })
                     except Exception:
                         pass
         except Exception:
@@ -105,6 +143,8 @@ def _find_save_dir_in_proton_prefix(user_dir: str, game_name: str) -> Optional[s
         "microsoft", "steam", "valve", "vulkan", "nvidia", "amd",
         "temp", "cache", "packages", "windows", "crashdumps", "intel",
         "google", "pip", "wine", "openxr", "khronos", "directx",
+        "d3dscache", "mesa", "mesa_shader_cache", "fontconfig", "dxvk", "vkd3d",
+        "my games", "public",
     }
 
     best_path: Optional[str] = None
@@ -240,13 +280,74 @@ def _scan_emulator_saves() -> List[Dict[str, Any]]:
     return results
 
 
+def _find_native_or_userdata_save(appid: str, game_name: str) -> Optional[str]:
+    home = _home_dir()
+    norm_game = _normalize_name(game_name)
+    tokens = [t for t in norm_game.split() if len(t) >= 3]
+
+    # 1. Revisar carpetas nativas Linux (~/.local/share, ~/.config)
+    for base in [os.path.join(home, ".local", "share"), os.path.join(home, ".config")]:
+        if not os.path.isdir(base):
+            continue
+        try:
+            for entry in os.scandir(base):
+                if not entry.is_dir():
+                    continue
+                norm_dir = _normalize_name(entry.name)
+                if not norm_dir:
+                    continue
+                if norm_dir == norm_game or (len(norm_dir) >= 4 and (norm_dir in norm_game or norm_game in norm_dir)):
+                    try:
+                        if any(True for _ in os.scandir(entry.path)):
+                            return entry.path
+                    except Exception:
+                        pass
+                elif tokens and sum(1 for t in tokens if t in norm_dir) >= max(1, len(tokens)):
+                    try:
+                        if any(True for _ in os.scandir(entry.path)):
+                            return entry.path
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # 2. Revisar Steam userdata/<uid>/<appid>/remote
+    for steam_base in [os.path.join(home, ".local", "share", "Steam"), os.path.join(home, ".steam", "steam")]:
+        userdata_dir = os.path.join(steam_base, "userdata")
+        if not os.path.isdir(userdata_dir):
+            continue
+        try:
+            for user_entry in os.scandir(userdata_dir):
+                if not user_entry.is_dir():
+                    continue
+                remote_dir = os.path.join(user_entry.path, appid, "remote")
+                if os.path.isdir(remote_dir):
+                    try:
+                        if any(True for _ in os.scandir(remote_dir)):
+                            return remote_dir
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return None
+
+
 def scan_local_game_saves(with_covers: bool = True) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     seen_paths = set()
 
-    # 1. Juegos de Steam / Proton en la Steam Deck
-    for game in _get_installed_steam_games():
-        save_dir = _find_save_dir_in_proton_prefix(game["compatUserDir"], game["name"])
+    steam_games = _get_installed_steam_games()
+    _log_info(f"home={_home_dir()}, steam_libs={len(_get_steam_library_paths())}, steam_games={len(steam_games)}")
+
+    # 1. Juegos de Steam / Proton en la Steam Deck (incluyendo compatdata en otra biblioteca y Linux nativo)
+    for game in steam_games:
+        save_dir: Optional[str] = None
+        for cdir in game.get("compatCandidates") or [game["compatUserDir"]]:
+            save_dir = _find_save_dir_in_proton_prefix(cdir, game["name"])
+            if save_dir:
+                break
+        if not save_dir:
+            save_dir = _find_native_or_userdata_save(game["appid"], game["name"])
         if save_dir:
             real = os.path.realpath(save_dir)
             if real in seen_paths:
@@ -265,7 +366,9 @@ def scan_local_game_saves(with_covers: bool = True) -> List[Dict[str, Any]]:
             )
 
     # 2. Emuladores y Ports PC
-    for emu in _scan_emulator_saves():
+    emu_items = _scan_emulator_saves()
+    _log_info(f"pc_detected={len(items)}, emu_detected={len(emu_items)}")
+    for emu in emu_items:
         real = os.path.realpath(emu["localPath"])
         if real in seen_paths:
             continue
