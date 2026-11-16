@@ -1,6 +1,6 @@
 {
   "name": "deck-seinen",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Decky Loader plugin basado en SyncSeinen para sincronizar saves de videojuegos y archivos con Google Drive, OneDrive y Dropbox.",
   "main": "dist/index.js",
   "type": "module",
