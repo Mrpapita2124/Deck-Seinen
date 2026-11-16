@@ -44,6 +44,15 @@ class Plugin:
     async def _unload(self):
         decky.logger.info("DeckSeinen backend descargado.")
 
+    async def _uninstall(self):
+        try:
+            rclone_conf = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "rclone.conf")
+            if os.path.isfile(rclone_conf):
+                os.remove(rclone_conf)
+                decky.logger.info("rclone.conf eliminado al desinstalar DeckSeinen.")
+        except Exception as exc:
+            decky.logger.warning(f"No se pudo eliminar rclone.conf al desinstalar: {exc}")
+
     async def get_state(self) -> Dict[str, Any]:
         cfg = self.manager.load_config()
         connected = self.manager.get_connected_services()
