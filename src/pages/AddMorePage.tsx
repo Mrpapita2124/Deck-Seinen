@@ -21,6 +21,7 @@ import {
 import { api } from "../api";
 import { CoverSearchModal } from "../components/CoverSearchModal";
 import { FileExplorerModal } from "../components/FileExplorerModal";
+import { useLang } from "../i18n";
 import {
   PROVIDER_LABELS,
   type CloudGameMeta,
@@ -45,11 +46,12 @@ function DetectedPathViewerModal({
   reason?: string;
   onChangePath: () => void;
 }) {
+  const [, , tr] = useLang();
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
       <div style={{ minWidth: "420px", maxWidth: "580px", color: "#fff" }}>
         <h2 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: 700 }}>
-          Ruta detectada: {gameName}
+          {tr(`Detected path: ${gameName}`, `Ruta detectada: ${gameName}`)}
         </h2>
         {reason && (
           <div style={{ fontSize: "12px", color: "#34d399", marginBottom: "8px" }}>{reason}</div>
@@ -77,13 +79,13 @@ function DetectedPathViewerModal({
               onChangePath();
             }}
           >
-            Cambiar ruta
+            {tr("Change path", "Cambiar ruta")}
           </DialogButton>
           <DialogButton
             onClick={closeModal}
             style={{ background: "#1a9fff", color: "#fff", fontWeight: 700 }}
           >
-            Aceptar
+            {tr("OK", "Aceptar")}
           </DialogButton>
         </Focusable>
       </div>
@@ -92,6 +94,7 @@ function DetectedPathViewerModal({
 }
 
 export function AddMorePage() {
+  const [, , tr] = useLang();
   const [activeTab, setActiveTab] = useState<MainTab>("sync_here");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [connectedServices, setConnectedServices] = useState<Record<CloudProvider, boolean>>({
@@ -239,7 +242,7 @@ export function AddMorePage() {
     showModal(
       <FileExplorerModal
         mode="folder"
-        title={`Seleccionar carpeta para ${gameName}`}
+        title={tr(`Select folder for ${gameName}`, `Seleccionar carpeta para ${gameName}`)}
         onConfirm={({ folderPath }) => {
           setManualPaths((prev) => ({ ...prev, [syncId]: folderPath }));
         }}
@@ -258,7 +261,12 @@ export function AddMorePage() {
     const selected = cloudGames.filter((g) => selectedCloudIds.includes(g.id));
     const missing = selected.filter((g) => !(manualPaths[g.id] || "").trim());
     if (missing.length > 0) {
-      setErrorMsg("Selecciona la ruta para todos los juegos antes de sincronizar.");
+      setErrorMsg(
+        tr(
+          "Select a folder path for all games before syncing.",
+          "Selecciona la ruta para todos los juegos antes de sincronizar."
+        )
+      );
       return;
     }
     setSyncingHere(true);
@@ -316,7 +324,12 @@ export function AddMorePage() {
 
   const handleCreateManual = async () => {
     if (!manualName.trim() || !manualFolderPath.trim()) {
-      setErrorMsg("Ingresa un nombre y selecciona una carpeta o archivos.");
+      setErrorMsg(
+        tr(
+          "Enter a name and select a folder or files.",
+          "Ingresa un nombre y selecciona una carpeta o archivos."
+        )
+      );
       return;
     }
     setCreatingManual(true);
@@ -330,7 +343,10 @@ export function AddMorePage() {
         coverUrl: manualCoverUrl,
       });
       if (!res.ok) {
-        setErrorMsg(res.error || "Error creando sincronización manual.");
+        setErrorMsg(
+          res.error ||
+            tr("Error creating manual sync.", "Error creando sincronización manual.")
+        );
         return;
       }
       returnToPluginMenu();
@@ -473,11 +489,14 @@ export function AddMorePage() {
             <div style={{ flex: 1, overflowY: "auto" }}>
               {loadingCloud ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
-                  Buscando saves de videojuegos en tu nube...
+                  {tr("Searching for game saves in your cloud...", "Buscando saves de videojuegos en tu nube...")}
                 </div>
               ) : filteredCloudGames.length === 0 ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
-                  No se encontraron saves de videojuegos pendientes en tu nube para este filtro.
+                  {tr(
+                    "No pending game saves were found in your cloud for this filter.",
+                    "No se encontraron saves de videojuegos pendientes en tu nube para este filtro."
+                  )}
                 </div>
               ) : (
                 <Focusable
@@ -580,7 +599,10 @@ export function AddMorePage() {
             <div style={{ flex: 1, overflowY: "auto" }}>
               {detectingPaths ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.75 }}>
-                  Detectando rutas de guardado en tu Steam Deck...
+                  {tr(
+                    "Detecting save paths on your Steam Deck...",
+                    "Detectando rutas de guardado en tu Steam Deck..."
+                  )}
                 </div>
               ) : (
                 <Focusable
@@ -659,7 +681,9 @@ export function AddMorePage() {
                                   borderRadius: "6px",
                                 }}
                               >
-                                {det?.detected ? "Path detected" : "Ruta seleccionada"}
+                                {det?.detected
+                                  ? tr("Path detected", "Path detected")
+                                  : tr("Selected path", "Ruta seleccionada")}
                               </div>
                               <DialogButton
                                 onClick={() =>
@@ -731,11 +755,17 @@ export function AddMorePage() {
             <div style={{ flex: 1, overflowY: "auto" }}>
               {loadingScan ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
-                  Escaneando saves de juegos y emuladores en tu Steam Deck...
+                  {tr(
+                    "Scanning game and emulator saves on your Steam Deck...",
+                    "Escaneando saves de juegos y emuladores en tu Steam Deck..."
+                  )}
                 </div>
               ) : filteredLocalGames.length === 0 ? (
                 <div style={{ padding: "40px", textAlign: "center", opacity: 0.7 }}>
-                  No se detectaron saves automáticamente para este filtro. Puedes usar{" "}
+                  {tr(
+                    "No saves were automatically detected for this filter. You can use ",
+                    "No se detectaron saves automáticamente para este filtro. Puedes usar "
+                  )}
                   <strong>Add manual</strong>.
                 </div>
               ) : (
@@ -840,7 +870,11 @@ export function AddMorePage() {
                 }}
               >
                 <FaSync />
-                <span>{loadingScan ? "Escaneando..." : "Refrescar"}</span>
+                <span>
+                  {loadingScan
+                    ? tr("Scanning...", "Escaneando...")
+                    : tr("Refresh", "Refrescar")}
+                </span>
               </DialogButton>
               <DialogButton
                 onClick={() => {
@@ -941,7 +975,7 @@ export function AddMorePage() {
                 disabled={uploadingGames || connectedProviders.length === 0}
                 style={{ minWidth: "130px", fontWeight: 700 }}
               >
-                {uploadingGames ? "Subiendo..." : "Sync"}
+                {uploadingGames ? tr("Uploading...", "Subiendo...") : "Sync"}
               </DialogButton>
             </Focusable>
           </>
@@ -994,7 +1028,9 @@ export function AddMorePage() {
                   ) : (
                     <>
                       <FaImage size={28} color="#60a5fa" />
-                      <span style={{ fontSize: "12px", fontWeight: 600 }}>Buscar imagen</span>
+                      <span style={{ fontSize: "12px", fontWeight: 600 }}>
+                        {tr("Search cover", "Buscar imagen")}
+                      </span>
                       <FaSearch size={12} style={{ opacity: 0.65 }} />
                     </>
                   )}
@@ -1013,7 +1049,7 @@ export function AddMorePage() {
                     label="Name"
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
-                    placeholder="Nombre del juego o sincronización"
+                    placeholder={tr("Game or sync name", "Nombre del juego o sincronización")}
                   />
 
                   <DialogButton
@@ -1021,7 +1057,7 @@ export function AddMorePage() {
                       showModal(
                         <FileExplorerModal
                           mode="files-or-folder"
-                          title="Seleccionar carpeta o archivos"
+                          title={tr("Select folder or files", "Seleccionar carpeta o archivos")}
                           onConfirm={({ folderPath, selectedFiles }) => {
                             setManualFolderPath(folderPath);
                             setManualSelectedFiles(selectedFiles);
@@ -1053,9 +1089,12 @@ export function AddMorePage() {
                     >
                       {manualFolderPath
                         ? manualSelectedFiles.length > 0
-                          ? `${manualSelectedFiles.length} archivo(s) en ${manualFolderPath}`
+                          ? tr(
+                              `${manualSelectedFiles.length} file(s) in ${manualFolderPath}`,
+                              `${manualSelectedFiles.length} archivo(s) en ${manualFolderPath}`
+                            )
                           : manualFolderPath
-                        : "Ninguno seleccionado"}
+                        : tr("None selected", "Ninguno seleccionado")}
                     </span>
                   </DialogButton>
 
@@ -1071,7 +1110,7 @@ export function AddMorePage() {
                       />
                     ) : (
                       <div style={{ fontSize: "12px", color: "#fbbf24" }}>
-                        Conecta primero un servicio en Services.
+                        {tr("Connect a service in Services first.", "Conecta primero un servicio en Services.")}
                       </div>
                     )}
                   </div>
@@ -1095,7 +1134,7 @@ export function AddMorePage() {
                 disabled={creatingManual || connectedProviders.length === 0}
                 style={{ minWidth: "130px", fontWeight: 700 }}
               >
-                {creatingManual ? "Creando..." : "Continue"}
+                {creatingManual ? tr("Creating...", "Creando...") : "Continue"}
               </DialogButton>
             </Focusable>
           </div>

@@ -25,6 +25,7 @@ import {
   FaTrash,
 } from "react-icons/fa";
 import { api } from "../api";
+import { useLang } from "../i18n";
 import {
   PROVIDER_LABELS,
   type CloudProvider,
@@ -40,6 +41,7 @@ function PathPreviewModal({
   closeModal?: () => void;
   sync: LocalSync;
 }) {
+  const [, , tr] = useLang();
   return (
     <div
       style={{
@@ -53,7 +55,7 @@ function PathPreviewModal({
     >
       <h3 style={{ margin: "0 0 8px 0", fontSize: "16px" }}>{sync.name}</h3>
       <div style={{ fontSize: "12px", opacity: 0.75, marginBottom: "6px" }}>
-        Ruta local en Steam Deck:
+        {tr("Local path on Steam Deck:", "Ruta local en Steam Deck:")}
       </div>
       <div
         style={{
@@ -70,15 +72,19 @@ function PathPreviewModal({
       </div>
       {sync.ignoredPaths && sync.ignoredPaths.length > 0 && (
         <div style={{ fontSize: "11px", opacity: 0.75, marginBottom: "12px" }}>
-          Ignorando {sync.ignoredPaths.length} elemento(s) fuera de los archivos seleccionados.
+          {tr(
+            `Ignoring ${sync.ignoredPaths.length} item(s) outside selected files.`,
+            `Ignorando ${sync.ignoredPaths.length} elemento(s) fuera de los archivos seleccionados.`
+          )}
         </div>
       )}
-      <DialogButton onClick={closeModal}>Cerrar</DialogButton>
+      <DialogButton onClick={closeModal}>{tr("Close", "Cerrar")}</DialogButton>
     </div>
   );
 }
 
 export function QamPanel() {
+  const [lang, setLang, tr] = useLang();
   const [state, setState] = useState<PluginState | null>(null);
   const [loading, setLoading] = useState(true);
   const [pluginOff, setPluginOff] = useState(false);
@@ -241,10 +247,13 @@ export function QamPanel() {
   if (pluginOff) {
     return (
       <div style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-        <PanelSection title="DeckSeinen en espera">
+        <PanelSection title={tr("DeckSeinen standby", "DeckSeinen en espera")}>
           <PanelSectionRow>
             <div style={{ fontSize: "12px", opacity: 0.78, padding: "4px 0" }}>
-              El plugin está apagado. Se volverá a encender automáticamente la próxima vez que abras DeckSeinen, o puedes encenderlo ahora.
+              {tr(
+                "The plugin is turned off. It will turn back on automatically next time you open DeckSeinen, or you can turn it on now.",
+                "El plugin está apagado. Se volverá a encender automáticamente la próxima vez que abras DeckSeinen, o puedes encenderlo ahora."
+              )}
             </div>
           </PanelSectionRow>
           <PanelSectionRow>
@@ -262,7 +271,7 @@ export function QamPanel() {
               }}
             >
               <FaPowerOff />
-              <span>Encender DeckSeinen</span>
+              <span>{tr("Turn on DeckSeinen", "Encender DeckSeinen")}</span>
             </DialogButton>
           </PanelSectionRow>
         </PanelSection>
@@ -274,7 +283,7 @@ export function QamPanel() {
   if (view === "services") {
     return (
       <div style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-        <PanelSection title="Servicios en la nube">
+        <PanelSection title={tr("Cloud services", "Servicios en la nube")}>
           {anyConnected && (
             <PanelSectionRow>
               <DialogButton
@@ -292,7 +301,7 @@ export function QamPanel() {
                 }}
               >
                 <FaArrowLeft />
-                <span>Ir a Sincronizaciones</span>
+                <span>{tr("Go to Syncs", "Ir a Sincronizaciones")}</span>
               </DialogButton>
             </PanelSectionRow>
           )}
@@ -300,8 +309,10 @@ export function QamPanel() {
           {!anyConnected && (
             <PanelSectionRow>
               <div style={{ fontSize: "12px", opacity: 0.8, lineHeight: 1.4 }}>
-                Conecta al menos un servicio (<strong>Google Drive</strong>,{" "}
-                <strong>OneDrive</strong> o <strong>DropBox</strong>) para comenzar.
+                {tr("Connect at least one service (", "Conecta al menos un servicio (")}
+                <strong>Google Drive</strong>, <strong>OneDrive</strong>{" "}
+                {tr("or", "o")} <strong>DropBox</strong>
+                {tr(") to get started.", ") para comenzar.")}
               </div>
             </PanelSectionRow>
           )}
@@ -376,7 +387,7 @@ export function QamPanel() {
                           }}
                         >
                           <FaSignOutAlt />
-                          <span>Cerrar sesión</span>
+                          <span>{tr("Sign out", "Cerrar sesión")}</span>
                         </DialogButton>
                       ) : (
                         <DialogButton
@@ -389,7 +400,7 @@ export function QamPanel() {
                             fontWeight: 700,
                           }}
                         >
-                          Iniciar sesión
+                          {tr("Sign in", "Iniciar sesión")}
                         </DialogButton>
                       )}
                     </div>
@@ -406,7 +417,7 @@ export function QamPanel() {
                     >
                       {!authUrl ? (
                         <div style={{ fontSize: "11px", opacity: 0.75 }}>
-                          Generando enlace de acceso...
+                          {tr("Generating login link...", "Generando enlace de acceso...")}
                         </div>
                       ) : (
                         <>
@@ -425,7 +436,7 @@ export function QamPanel() {
                             }}
                           >
                             <FaExternalLinkAlt size={11} />
-                            <span>Abrir navegador de Steam</span>
+                            <span>{tr("Open Steam browser", "Abrir navegador de Steam")}</span>
                           </DialogButton>
                         </>
                       )}
@@ -434,7 +445,7 @@ export function QamPanel() {
                         onClick={cancelLogin}
                         style={{ width: "100%", minWidth: 0, padding: "6px", fontSize: "11px" }}
                       >
-                        Cancelar
+                        {tr("Cancel", "Cancelar")}
                       </DialogButton>
                     </div>
                   )}
@@ -444,9 +455,47 @@ export function QamPanel() {
           })}
         </PanelSection>
 
-        <PanelSection title="Dispositivo">
+        <PanelSection title={tr("Settings", "Ajustes")}>
           <PanelSectionRow>
             <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>
+                {tr("Language / Idioma", "Idioma / Language")}
+              </div>
+              <Focusable
+                flow-children="horizontal"
+                style={{ display: "flex", gap: "6px", width: "100%", marginBottom: "6px" }}
+              >
+                <DialogButton
+                  onClick={() => setLang("en")}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: "6px",
+                    fontSize: "11px",
+                    fontWeight: lang === "en" ? 700 : 400,
+                    borderBottom: lang === "en" ? "3px solid #38bdf8" : "3px solid transparent",
+                  }}
+                >
+                  English
+                </DialogButton>
+                <DialogButton
+                  onClick={() => setLang("es")}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: "6px",
+                    fontSize: "11px",
+                    fontWeight: lang === "es" ? 700 : 400,
+                    borderBottom: lang === "es" ? "3px solid #38bdf8" : "3px solid transparent",
+                  }}
+                >
+                  Español
+                </DialogButton>
+              </Focusable>
+
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>
+                {tr("Device name", "Nombre del dispositivo")}
+              </div>
               <TextField
                 value={deviceNameInput}
                 onChange={(e) => setDeviceNameInput(e.target.value)}
@@ -457,7 +506,9 @@ export function QamPanel() {
                 onClick={handleSaveDeviceName}
                 style={{ width: "100%", minWidth: 0, padding: "6px", fontSize: "11px" }}
               >
-                {savingDevice ? "Guardando..." : "Guardar nombre"}
+                {savingDevice
+                  ? tr("Saving...", "Guardando...")
+                  : tr("Save name", "Guardar nombre")}
               </DialogButton>
             </div>
           </PanelSectionRow>
@@ -542,15 +593,24 @@ export function QamPanel() {
       {loading && localSyncs.length === 0 ? (
         <PanelSection>
           <PanelSectionRow>
-            <div style={{ fontSize: "12px", opacity: 0.7 }}>Cargando sincronizaciones...</div>
+            <div style={{ fontSize: "12px", opacity: 0.7 }}>
+              {tr("Loading syncs...", "Cargando sincronizaciones...")}
+            </div>
           </PanelSectionRow>
         </PanelSection>
       ) : grouped.length === 0 ? (
-        <PanelSection title="Sincronizaciones">
+        <PanelSection title={tr("Syncs", "Sincronizaciones")}>
           <PanelSectionRow>
             <div style={{ fontSize: "12px", opacity: 0.78, lineHeight: 1.45 }}>
-              No tienes sincronizaciones agregadas en esta Steam Deck todavía. Usa{" "}
-              <strong>Add more</strong> para traer saves desde tu nube o subir nuevos.
+              {tr(
+                "You don't have any syncs added on this Steam Deck yet. Use ",
+                "No tienes sincronizaciones agregadas en esta Steam Deck todavía. Usa "
+              )}
+              <strong>Add more</strong>{" "}
+              {tr(
+                "to pull saves from your cloud or upload new ones.",
+                "para traer saves desde tu nube o subir nuevos."
+              )}
             </div>
           </PanelSectionRow>
         </PanelSection>
@@ -782,7 +842,11 @@ export function QamPanel() {
               }}
             >
               <FaSync />
-              <span>{loading ? "Actualizando..." : "Actualizar estado"}</span>
+              <span>
+                {loading
+                  ? tr("Refreshing...", "Actualizando...")
+                  : tr("Refresh status", "Actualizar estado")}
+              </span>
             </DialogButton>
             <DialogButton
               onClick={() => {

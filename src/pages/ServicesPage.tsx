@@ -2,9 +2,11 @@ import { DialogButton, Focusable, Navigation, TextField } from "@decky/ui";
 import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaCheckCircle, FaCloud, FaSignOutAlt } from "react-icons/fa";
 import { api } from "../api";
+import { useLang } from "../i18n";
 import { PROVIDER_LABELS, type CloudProvider } from "../types";
 
 export function ServicesPage() {
+  const [lang, setLang, tr] = useLang();
   const [connectedServices, setConnectedServices] = useState<Record<CloudProvider, boolean>>({
     gdrive: false,
     onedrive: false,
@@ -148,10 +150,10 @@ export function ServicesPage() {
                   </div>
                   <div style={{ fontSize: "12px", opacity: 0.75 }}>
                     {isConnected
-                      ? "Conectado y listo para sincronizar"
+                      ? tr("Connected and ready to sync", "Conectado y listo para sincronizar")
                       : isAuthenticating
-                        ? "Esperando inicio de sesión en el navegador..."
-                        : "Desconectado"}
+                        ? tr("Waiting for browser sign in...", "Esperando inicio de sesión en el navegador...")
+                        : tr("Disconnected", "Desconectado")}
                   </div>
                 </div>
               </div>
@@ -172,7 +174,7 @@ export function ServicesPage() {
                       }}
                     >
                       <FaSignOutAlt />
-                      <span>Desconectar</span>
+                      <span>{tr("Sign out", "Desconectar")}</span>
                     </DialogButton>
                   </>
                 ) : isAuthenticating ? (
@@ -182,11 +184,11 @@ export function ServicesPage() {
                         onClick={() => Navigation.NavigateToExternalWeb(authUrl)}
                         style={{ minWidth: "130px", background: "#1a9fff" }}
                       >
-                        Abrir enlace
+                        {tr("Open link", "Abrir enlace")}
                       </DialogButton>
                     )}
                     <DialogButton onClick={cancelLogin} style={{ minWidth: "100px" }}>
-                      Cancelar
+                      {tr("Cancel", "Cancelar")}
                     </DialogButton>
                   </>
                 ) : (
@@ -194,7 +196,7 @@ export function ServicesPage() {
                     onClick={() => startLogin(provider)}
                     style={{ minWidth: "140px", background: "#1a9fff", fontWeight: 700 }}
                   >
-                    Iniciar sesión
+                    {tr("Sign in", "Iniciar sesión")}
                   </DialogButton>
                 )}
               </div>
@@ -210,10 +212,11 @@ export function ServicesPage() {
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "12px",
           padding: "16px 18px",
+          marginBottom: "16px",
         }}
       >
         <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>
-          Nombre de este dispositivo
+          {tr("This device name", "Nombre de este dispositivo")}
         </div>
         <Focusable
           flow-children="horizontal"
@@ -231,7 +234,43 @@ export function ServicesPage() {
             disabled={savingDevice}
             style={{ minWidth: "120px", background: "#10b981", color: "#000", fontWeight: 700 }}
           >
-            {savingDevice ? "Guardando..." : "Guardar"}
+            {savingDevice ? tr("Saving...", "Guardando...") : tr("Save", "Guardar")}
+          </DialogButton>
+        </Focusable>
+      </div>
+
+      {/* Idioma */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "12px",
+          padding: "16px 18px",
+        }}
+      >
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>
+          {tr("Language / Idioma", "Idioma / Language")}
+        </div>
+        <Focusable flow-children="horizontal" style={{ display: "flex", gap: "10px" }}>
+          <DialogButton
+            onClick={() => setLang("en")}
+            style={{
+              minWidth: "120px",
+              fontWeight: lang === "en" ? 700 : 400,
+              borderBottom: lang === "en" ? "3px solid #38bdf8" : "3px solid transparent",
+            }}
+          >
+            English
+          </DialogButton>
+          <DialogButton
+            onClick={() => setLang("es")}
+            style={{
+              minWidth: "120px",
+              fontWeight: lang === "es" ? 700 : 400,
+              borderBottom: lang === "es" ? "3px solid #38bdf8" : "3px solid transparent",
+            }}
+          >
+            Español
           </DialogButton>
         </Focusable>
       </div>

@@ -112,23 +112,34 @@ class Plugin:
         return await asyncio.to_thread(self.manager.logout_provider, provider)
 
     async def list_cloud_game_syncs(self) -> List[Dict[str, Any]]:
-        cfg = self.manager.load_config()
-        local_ids = set((cfg.get("localMappings") or {}).keys())
-        cloud_metas = await asyncio.to_thread(self.manager.list_cloud_metadatas)
-        # En Sync here aparecen las existentes en la nube marcadas como videojuego
-        games = []
-        for m in cloud_metas:
-            if bool(m.get("isGameSave")) and m.get("id") not in local_ids:
-                games.append(m)
-        games.sort(key=lambda x: str(x.get("name") or "").lower())
-        await asyncio.to_thread(populate_covers_parallel, games, 30)
-        for g in games:
-            if not g.get("coverDataUrl") and g.get("coverUrl"):
-                g["coverDataUrl"] = g["coverUrl"]
-        return games
+        try:
+            cfg = self.manager.load_config()
+            local_ids = set((cfg.get("localMappings") or {}).keys())
+            cloud_metas = await asyncio.to_thread(self.manager.list_cloud_metadatas)
+            # En Sync here aparecen las existentes en la nube marcadas como videojuego
+            games = []
+            for m in cloud_metas:
+                if bool(m.get("isGameSave")) and m.get("id") not in local_ids:
+                    games.append(m)
+            games.sort(key=lambda x: str(x.get("name") or "").lower())
+            try:
+                await asyncio.to_thread(populate_covers_parallel, games, 30)
+            except Exception as exc:
+                decky.logger.warning(f"Error cargando portadas en list_cloud_game_syncs: {exc}")
+            for g in games:
+                if not g.get("coverDataUrl") and g.get("coverUrl"):
+                    g["coverDataUrl"] = g["coverUrl"]
+            return games
+        except Exception as exc:
+            decky.logger.exception(f"Error en list_cloud_game_syncs: {exc}")
+            return []
 
     async def detect_cloud_game_paths(self, syncs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-        return await asyncio.to_thread(detect_cloud_game_paths, syncs)
+        try:
+            return await asyncio.to_thread(detect_cloud_game_paths, syncs)
+        except Exception as exc:
+            decky.logger.exception(f"Error en detect_cloud_game_paths: {exc}")
+            return {}
 
     async def link_and_pull_syncs(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """items: [{ meta, localPath }]"""

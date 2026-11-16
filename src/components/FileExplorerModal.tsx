@@ -2,6 +2,7 @@ import { DialogButton, Focusable, ModalRoot } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { FaArrowUp, FaCheckSquare, FaFile, FaFolder, FaRegSquare } from "react-icons/fa";
 import { api } from "../api";
+import { useLang } from "../i18n";
 import type { DirEntry, DirectoryListing } from "../types";
 
 interface FileExplorerModalProps {
@@ -19,6 +20,7 @@ export function FileExplorerModal({
   title,
   onConfirm,
 }: FileExplorerModalProps) {
+  const [, , tr] = useLang();
   const [listing, setListing] = useState<DirectoryListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -71,10 +73,13 @@ export function FileExplorerModal({
           }}
         >
           <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
-            {title || (mode === "folder" ? "Seleccionar Carpeta" : "Seleccionar Carpeta o Archivos")}
+            {title ||
+              (mode === "folder"
+                ? tr("Select Folder", "Seleccionar Carpeta")
+                : tr("Select Folder or Files", "Seleccionar Carpeta o Archivos"))}
           </h2>
           <span style={{ fontSize: "11px", opacity: 0.7 }}>
-            Solo lectura (navegación y selección)
+            {tr("Read-only (browse & select)", "Solo lectura (navegación y selección)")}
           </span>
         </div>
 
@@ -132,7 +137,7 @@ export function FileExplorerModal({
               whiteSpace: "nowrap",
             }}
           >
-            {listing?.currentPath || "Cargando..."}
+            {listing?.currentPath || tr("Loading...", "Cargando...")}
           </div>
         </Focusable>
 
@@ -149,11 +154,11 @@ export function FileExplorerModal({
         >
           {loading ? (
             <div style={{ padding: "24px", textAlign: "center", opacity: 0.7 }}>
-              Cargando archivos...
+              {tr("Loading files...", "Cargando archivos...")}
             </div>
           ) : !listing || listing.entries.length === 0 ? (
             <div style={{ padding: "24px", textAlign: "center", opacity: 0.6 }}>
-              Carpeta vacía
+              {tr("Empty folder", "Carpeta vacía")}
             </div>
           ) : (
             <Focusable style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -226,14 +231,14 @@ export function FileExplorerModal({
           style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
         >
           <DialogButton onClick={closeModal} style={{ minWidth: "100px" }}>
-            Cancelar
+            {tr("Cancel", "Cancelar")}
           </DialogButton>
           {mode === "files-or-folder" && selectedFiles.length > 0 && (
             <DialogButton
               onClick={handleConfirmSelectedFiles}
               style={{ minWidth: "180px", fontWeight: 700 }}
             >
-              Usar {selectedFiles.length} archivo(s)
+              {tr(`Use ${selectedFiles.length} file(s)`, `Usar ${selectedFiles.length} archivo(s)`)}
             </DialogButton>
           )}
           <DialogButton
@@ -241,7 +246,7 @@ export function FileExplorerModal({
             disabled={!listing}
             style={{ minWidth: "180px", fontWeight: 700 }}
           >
-            Seleccionar esta carpeta
+            {tr("Select this folder", "Seleccionar esta carpeta")}
           </DialogButton>
         </Focusable>
       </div>

@@ -2,6 +2,7 @@ import { DialogButton, Focusable, ModalRoot, TextField } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { FaSearch } from "react-icons/fa";
 import { api } from "../api";
+import { useLang } from "../i18n";
 import type { DdgImageResult } from "../types";
 
 interface CoverSearchModalProps {
@@ -15,6 +16,7 @@ export function CoverSearchModal({
   initialQuery = "",
   onSelect,
 }: CoverSearchModalProps) {
+  const [, , tr] = useLang();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<DdgImageResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,11 +31,11 @@ export function CoverSearchModal({
       const hits = await api.searchDdgImages(clean);
       setResults(hits);
       if (hits.length === 0) {
-        setErrorMsg("No se encontraron imágenes para esta búsqueda.");
+        setErrorMsg(tr("No images found for this search.", "No se encontraron imágenes para esta búsqueda."));
       }
     } catch (err: any) {
-      console.error("Error buscando en DuckDuckGo:", err);
-      setErrorMsg(String(err?.message || err || "Error consultando DuckDuckGo"));
+      console.error("Error searching DuckDuckGo:", err);
+      setErrorMsg(String(err?.message || err || tr("Error querying DuckDuckGo", "Error consultando DuckDuckGo")));
     } finally {
       setLoading(false);
     }
@@ -49,7 +51,7 @@ export function CoverSearchModal({
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
       <div style={{ minWidth: "560px", maxWidth: "680px", color: "#fff" }}>
         <h2 style={{ margin: "0 0 10px 0", fontSize: "18px", fontWeight: 700 }}>
-          Buscar carátula en DuckDuckGo
+          {tr("Search cover on DuckDuckGo", "Buscar carátula en DuckDuckGo")}
         </h2>
 
         <Focusable
@@ -66,7 +68,7 @@ export function CoverSearchModal({
             <TextField
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ej. Mario Kart 8 Deluxe cover"
+              placeholder={tr("e.g. Mario Kart 8 Deluxe cover", "Ej. Mario Kart 8 Deluxe cover")}
               style={{ width: "100%" }}
             />
           </div>
@@ -84,7 +86,7 @@ export function CoverSearchModal({
             }}
           >
             <FaSearch />
-            <span>{loading ? "..." : "Buscar"}</span>
+            <span>{loading ? "..." : tr("Search", "Buscar")}</span>
           </DialogButton>
         </Focusable>
 
@@ -115,11 +117,14 @@ export function CoverSearchModal({
         >
           {loading ? (
             <div style={{ padding: "36px", textAlign: "center", opacity: 0.75 }}>
-              Buscando imágenes en DuckDuckGo...
+              {tr("Searching DuckDuckGo images...", "Buscando imágenes en DuckDuckGo...")}
             </div>
           ) : results.length === 0 ? (
             <div style={{ padding: "36px", textAlign: "center", opacity: 0.65 }}>
-              Escribe el nombre del juego o carpeta y presiona Buscar.
+              {tr(
+                "Type a game or folder name and press Search.",
+                "Escribe el nombre del juego o carpeta y presiona Buscar."
+              )}
             </div>
           ) : (
             <Focusable

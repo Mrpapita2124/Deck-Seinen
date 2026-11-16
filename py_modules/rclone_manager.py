@@ -282,25 +282,42 @@ class RcloneManager:
             if not is_conn:
                 continue
             remote = PROVIDER_CONFIG[provider]["remote"]
-            res = self._run_rclone(["lsjson", f"{remote}:{METADATA_FOLDER}"], timeout=45)
-            if res.returncode != 0 or not res.stdout.strip():
-                continue
+            tmp_dir = tempfile.mkdtemp(prefix=f"deckseinen_meta_{provider}_")
             try:
-                entries = json.loads(res.stdout)
-            except Exception:
-                continue
-            for entry in entries:
-                name = entry.get("Name") or ""
-                if not name.endswith(".json") or entry.get("IsDir"):
-                    continue
-                cat_res = self._run_rclone(["cat", f"{remote}:{METADATA_FOLDER}/{name}"], timeout=30)
-                if cat_res.returncode == 0 and cat_res.stdout.strip():
+                res = self._run_rclone(
+                    [
+                        "copy",
+                        f"{remote}:{METADATA_FOLDER}",
+                        tmp_dir,
+                        "--include",
+                        "*.json",
+                        "--max-depth",
+                        "1",
+                        "--transfers",
+                        "8",
+                    ],
+                    timeout=45,
+                )
+                if res.returncode != 0:
+                    self._log(f"list_cloud_metadatas ({provider}) code={res.returncode}: {res.stderr or res.stdout}")
+                for fname in os.listdir(tmp_dir):
+                    if not fname.endswith(".json"):
+                        continue
+                    fpath = os.path.join(tmp_dir, fname)
+                    if not os.path.isfile(fpath):
+                        continue
                     try:
-                        meta = json.loads(cat_res.stdout)
-                        meta.setdefault("provider", provider)
-                        all_metas.append(meta)
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            meta = json.load(f)
+                        if isinstance(meta, dict):
+                            meta.setdefault("provider", provider)
+                            all_metas.append(meta)
                     except Exception:
                         pass
+            except Exception as exc:
+                self._log(f"Error list_cloud_metadatas ({provider}): {exc}")
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
         return all_metas
 
     def save_cloud_metadata(self, provider: str, metadata: Dict[str, Any]) -> None:
