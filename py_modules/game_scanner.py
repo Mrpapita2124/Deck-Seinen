@@ -11,6 +11,17 @@ def _normalize_name(name: str) -> str:
 
 
 def _home_dir() -> str:
+    env_home = os.environ.get("DECKY_USER_HOME")
+    if env_home and os.path.isdir(env_home):
+        return env_home
+    try:
+        import decky
+        if getattr(decky, "DECKY_USER_HOME", None) and os.path.isdir(decky.DECKY_USER_HOME):
+            return decky.DECKY_USER_HOME
+    except Exception:
+        pass
+    if os.path.isdir("/home/deck"):
+        return "/home/deck"
     return os.path.expanduser("~")
 
 
@@ -92,11 +103,13 @@ def _find_save_dir_in_proton_prefix(user_dir: str, game_name: str) -> Optional[s
     ]
     ignore_dirs = {
         "microsoft", "steam", "valve", "vulkan", "nvidia", "amd",
-        "temp", "cache", "packages", "windows", "crashdumps",
+        "temp", "cache", "packages", "windows", "crashdumps", "intel",
+        "google", "pip", "wine", "openxr", "khronos", "directx",
     }
 
     best_path: Optional[str] = None
     best_score = 0
+    fallback_path: Optional[str] = None
 
     for root in search_roots:
         if not os.path.isdir(root):
@@ -106,8 +119,18 @@ def _find_save_dir_in_proton_prefix(user_dir: str, game_name: str) -> Optional[s
                 if not entry.is_dir():
                     continue
                 low = entry.name.lower()
-                if low in ignore_dirs:
+                if low in ignore_dirs or low.startswith("."):
                     continue
+                try:
+                    has_files = any(True for _ in os.scandir(entry.path))
+                except Exception:
+                    has_files = False
+                if not has_files:
+                    continue
+
+                if fallback_path is None:
+                    fallback_path = entry.path
+
                 norm_dir = _normalize_name(entry.name)
                 if not norm_dir:
                     continue
@@ -121,18 +144,12 @@ def _find_save_dir_in_proton_prefix(user_dir: str, game_name: str) -> Optional[s
                     if matches > 0:
                         score = matches * 25
                 if score > best_score:
-                    # Verificar que no esté vacía
-                    try:
-                        has_files = any(True for _ in os.scandir(entry.path))
-                    except Exception:
-                        has_files = False
-                    if has_files:
-                        best_score = score
-                        best_path = entry.path
+                    best_score = score
+                    best_path = entry.path
         except Exception:
             pass
 
-    return best_path
+    return best_path or fallback_path
 
 
 def _scan_emulator_saves() -> List[Dict[str, Any]]:

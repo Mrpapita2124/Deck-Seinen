@@ -28,18 +28,24 @@ def _http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int =
             return resp.read()
 
 
-def search_duckduckgo_images(query: str, max_results: int = 24) -> List[Dict[str, Any]]:
+def search_duckduckgo_images(query: str, max_results: int = 20) -> List[Dict[str, Any]]:
     q = (query or "").strip()
     if not q:
         return []
 
     encoded_q = urllib.parse.quote(q)
-    html_bytes = _http_get(f"https://duckduckgo.com/?q={encoded_q}&iax=images&ia=images")
+    base_headers = {
+        "Referer": "https://duckduckgo.com/",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    html_bytes = _http_get(
+        f"https://duckduckgo.com/?q={encoded_q}&iax=images&ia=images",
+        headers=base_headers,
+    )
     html_text = html_bytes.decode("utf-8", errors="ignore")
 
     vqd_match = (
-        re.search(r'vqd=["\']([^"\']+)["\']', html_text)
-        or re.search(r"vqd=([0-9-]+)&", html_text)
+        re.search(r'vqd=[\'"]?([\d-]+)[\'"]?', html_text)
         or re.search(r'"vqd"\s*:\s*"([^"]+)"', html_text)
     )
     if not vqd_match:
@@ -47,14 +53,15 @@ def search_duckduckgo_images(query: str, max_results: int = 24) -> List[Dict[str
 
     vqd = urllib.parse.quote(vqd_match.group(1))
     api_url = (
-        f"https://duckduckgo.com/i.js?l=wt-wt&o=json&q={encoded_q}"
-        f"&vqd={vqd}&f=,,,&p=1"
+        f"https://duckduckgo.com/i.js?l=us-en&o=json&q={encoded_q}"
+        f"&vqd={vqd}&f=,,,,,&p=1"
     )
     raw_json = _http_get(
         api_url,
         headers={
             "Referer": "https://duckduckgo.com/",
             "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Language": "en-US,en;q=0.9",
         },
     )
     data = json.loads(raw_json.decode("utf-8", errors="ignore"))
@@ -73,6 +80,16 @@ def search_duckduckgo_images(query: str, max_results: int = 24) -> List[Dict[str
                 "height": item.get("height") or 0,
             }
         )
+
+    def _inline_thumb(entry: Dict[str, Any]) -> None:
+        t = download_image_as_data_url(entry.get("thumbUrl") or entry.get("imageUrl") or "")
+        if t:
+            entry["thumbUrl"] = t
+
+    if results:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            list(pool.map(_inline_thumb, results[:16]))
+
     return results
 
 

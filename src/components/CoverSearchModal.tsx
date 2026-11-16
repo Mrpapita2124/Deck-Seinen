@@ -18,16 +18,22 @@ export function CoverSearchModal({
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<DdgImageResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const runSearch = async (q: string) => {
     const clean = q.trim();
     if (!clean) return;
     setLoading(true);
+    setErrorMsg(null);
     try {
       const hits = await api.searchDdgImages(clean);
       setResults(hits);
-    } catch (err) {
+      if (hits.length === 0) {
+        setErrorMsg("No se encontraron imágenes para esta búsqueda.");
+      }
+    } catch (err: any) {
       console.error("Error buscando en DuckDuckGo:", err);
+      setErrorMsg(String(err?.message || err || "Error consultando DuckDuckGo"));
     } finally {
       setLoading(false);
     }
@@ -41,27 +47,36 @@ export function CoverSearchModal({
 
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
-      <div style={{ minWidth: "540px", maxWidth: "680px", color: "#fff" }}>
+      <div style={{ minWidth: "560px", maxWidth: "680px", color: "#fff" }}>
         <h2 style={{ margin: "0 0 10px 0", fontSize: "18px", fontWeight: 700 }}>
           Buscar carátula en DuckDuckGo
         </h2>
 
         <Focusable
           flow-children="horizontal"
-          style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px" }}
+          style={{
+            display: "flex",
+            gap: "10px",
+            alignItems: "center",
+            width: "100%",
+            marginBottom: "12px",
+          }}
         >
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <TextField
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ej. Mario Kart 8 Deluxe cover"
+              style={{ width: "100%" }}
             />
           </div>
           <DialogButton
             onClick={() => runSearch(query)}
             disabled={loading || !query.trim()}
             style={{
-              minWidth: "110px",
+              width: "115px",
+              minWidth: "115px",
+              flexShrink: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -69,9 +84,24 @@ export function CoverSearchModal({
             }}
           >
             <FaSearch />
-            <span>{loading ? "Buscando..." : "Buscar"}</span>
+            <span>{loading ? "..." : "Buscar"}</span>
           </DialogButton>
         </Focusable>
+
+        {errorMsg && (
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#fca5a5",
+              background: "rgba(239,68,68,0.18)",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              marginBottom: "10px",
+            }}
+          >
+            {errorMsg}
+          </div>
+        )}
 
         <div
           style={{

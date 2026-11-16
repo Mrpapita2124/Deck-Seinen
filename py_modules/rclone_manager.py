@@ -405,7 +405,7 @@ class RcloneManager:
             json.dump(metadata, tmp, indent=2, ensure_ascii=False)
             tmp_path = tmp.name
         try:
-            dest = f"{remote}:{METADATA_FOLDER}/{metadata['id']}.json"
+            dest = f"{remote}:{METADATA_FOLDER}/sync-{metadata['id']}.json"
             res = self._run_rclone(["copyto", tmp_path, dest], timeout=45)
             if res.returncode != 0:
                 raise RuntimeError(res.stderr or res.stdout or "Error guardando metadata en la nube")
@@ -543,6 +543,7 @@ class RcloneManager:
             provider = mapping.get("provider") or "gdrive"
             if self.get_connected_services().get(provider):
                 remote = PROVIDER_CONFIG[provider]["remote"]
+                self._run_rclone(["deletefile", f"{remote}:{METADATA_FOLDER}/sync-{sync_id}.json"], timeout=30)
                 self._run_rclone(["deletefile", f"{remote}:{METADATA_FOLDER}/{sync_id}.json"], timeout=30)
                 drive_folder = str(mapping.get("driveFolder") or "").strip("/")
                 if drive_folder:

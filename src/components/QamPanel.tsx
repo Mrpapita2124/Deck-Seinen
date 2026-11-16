@@ -19,6 +19,7 @@ import {
   FaFolderOpen,
   FaGamepad,
   FaPlus,
+  FaPowerOff,
   FaServer,
   FaSignOutAlt,
   FaSync,
@@ -81,6 +82,7 @@ function PathPreviewModal({
 export function QamPanel() {
   const [state, setState] = useState<PluginState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pluginOff, setPluginOff] = useState(false);
   const [view, setView] = useState<"syncs" | "services">("syncs");
   const [initialViewResolved, setInitialViewResolved] = useState(false);
 
@@ -120,7 +122,7 @@ export function QamPanel() {
   };
 
   useEffect(() => {
-    loadState(true);
+    loadState(false);
     return () => {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
@@ -280,6 +282,38 @@ export function QamPanel() {
       items: localSyncs.filter((s) => (s.provider || "gdrive") === provider),
     }))
     .filter((g) => g.items.length > 0);
+
+  if (pluginOff) {
+    return (
+      <div style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+        <PanelSection title="DeckSeinen en espera">
+          <PanelSectionRow>
+            <div style={{ fontSize: "12px", opacity: 0.78, padding: "4px 0" }}>
+              El plugin está apagado. Se volverá a encender automáticamente la próxima vez que abras DeckSeinen, o puedes encenderlo ahora.
+            </div>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <DialogButton
+              onClick={() => setPluginOff(false)}
+              style={{
+                width: "100%",
+                minWidth: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                fontSize: "12px",
+                boxSizing: "border-box",
+              }}
+            >
+              <FaPowerOff />
+              <span>Encender DeckSeinen</span>
+            </DialogButton>
+          </PanelSectionRow>
+        </PanelSection>
+      </div>
+    );
+  }
 
   // ==================== VISTA DE SERVICIOS (INLINE) ====================
   if (view === "services") {
@@ -817,23 +851,54 @@ export function QamPanel() {
 
       <PanelSection>
         <PanelSectionRow>
-          <DialogButton
-            onClick={() => loadState(true)}
-            disabled={loading}
+          <Focusable
+            flow-children="horizontal"
             style={{
-              width: "100%",
-              minWidth: 0,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
               gap: "8px",
-              fontSize: "12px",
+              width: "100%",
               boxSizing: "border-box",
             }}
           >
-            <FaSync />
-            <span>{loading ? "Actualizando..." : "Actualizar estado"}</span>
-          </DialogButton>
+            <DialogButton
+              onClick={() => loadState(true)}
+              disabled={loading}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                fontSize: "12px",
+                boxSizing: "border-box",
+              }}
+            >
+              <FaSync />
+              <span>{loading ? "Actualizando..." : "Actualizar estado"}</span>
+            </DialogButton>
+            <DialogButton
+              onClick={() => {
+                if (pollTimer.current) {
+                  window.clearInterval(pollTimer.current);
+                  pollTimer.current = null;
+                }
+                setPluginOff(true);
+              }}
+              style={{
+                width: "44px",
+                minWidth: "44px",
+                padding: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                boxSizing: "border-box",
+              }}
+            >
+              <FaPowerOff size={13} />
+            </DialogButton>
+          </Focusable>
         </PanelSectionRow>
       </PanelSection>
     </div>
