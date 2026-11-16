@@ -1,40 +1,44 @@
 # Deck-Seinen
 
-Plugin para **Decky Loader** (Steam Deck / SteamOS) basado en [**SyncSeinen**](https://github.com/Mrpapita2124/syncseinen) para sincronizar partidas guardadas de videojuegos de PC, emuladores y carpetas personalizadas con **Google Drive**, **OneDrive** y **Dropbox** usando **rclone**.
+🌐 **English** | [Español](README.es.md)
 
-> 💡 **¿Buscas la aplicación de escritorio para Windows y Linux?**
-> Visita el repositorio principal: [**SyncSeinen (Windows & Linux)**](https://github.com/Mrpapita2124/syncseinen).
-> **Deck-Seinen** comparte exactamente el mismo formato de metadatos (`_SyncSeinen_Metadata`) y carpeta de partidas (`SyncSeinen_games_saves`), por lo que puedes sincronizar tus saves entre tu PC y tu Steam Deck de forma transparente.
+A **Decky Loader** plugin (Steam Deck / SteamOS) based on [**SyncSeinen**](https://github.com/Mrpapita2124/syncseinen) to synchronize PC game saves, emulator saves, and custom folders with **Google Drive**, **OneDrive**, and **Dropbox** using **rclone**.
 
----
-
-## ✨ Características Principales
-
-- ☁️ **Multi-nube con rclone:** Soporta **Google Drive**, **OneDrive** y **Dropbox** desde la pantalla **Services**, con descarga automática de `rclone` para Linux x86_64 si no está instalado.
-- 🎮 **Panel Rápido (QAM):**
-  - Muestra únicamente las sincronizaciones creadas o vinculadas en tu Steam Deck, agrupadas por servicio.
-  - Estado en tiempo real (**Pending** si el último *Push* vino de otro dispositivo como tu PC, o **Up to date**).
-  - Botones directos de **sync**, **Pull**, **Push**, **Ver ruta** y **Eliminar** (permite elegir entre eliminar solo de la Steam Deck o también de tu cuenta en la nube).
-- 🔄 **Sync here (traer saves desde tu nube a la Steam Deck):**
-  - Lista los saves de videojuegos guardados en tu nube desde otros dispositivos.
-  - Detecta automáticamente rutas de guardado en prefixes Proton (`compatdata`), EmuDeck, Flatpak y rutas nativas; muestra la ruta detectada o te permite elegirla manualmente.
-- 📤 **Upload (subir saves desde la Steam Deck):**
-  - Escanea partidas guardadas de Steam/Proton y emuladores con carátulas de **SteamGridDB**.
-  - **Add manual:** Permite elegir nombre, servicio, buscar carátula en una ventana flotante con **DuckDuckGo**, y seleccionar una carpeta o **archivos específicos** (ignorando automáticamente los archivos y subcarpetas no seleccionados).
-- 📁 **Explorador de archivos integrado (solo lectura):**
-  - Inspirado en Decky File Manager con accesos rápidos (`Home`, `Emulation/saves`, `Steam compatdata`, `SD Card`), diseñado únicamente para navegar y seleccionar rutas/archivos sin modificar ni eliminar nada.
+> 💡 **Looking for the desktop app for Windows and Linux?**
+> Check out the main repository: [**SyncSeinen (Windows & Linux)**](https://github.com/Mrpapita2124/syncseinen).
+> **Deck-Seinen** shares the exact same metadata format (`_SyncSeinen_Metadata`) and save folder (`SyncSeinen_games_saves`), so you can seamlessly sync your saves between your PC and your Steam Deck.
 
 ---
 
-## 📦 Instalación en Steam Deck
+## ✨ Key Features
 
-1. Descarga `DeckSeinen-DeckyPlugin.zip` desde la sección de [**Releases**](https://github.com/Mrpapita2124/Deck-Seinen/releases).
-2. En tu Steam Deck (Modo Juego), abre el menú rápido de **Decky Loader** → **Configuración** → **Developer** (o modo desarrollador) → **Install Plugin from ZIP** y selecciona el archivo descargado.
-   *(También puedes descomprimir la carpeta `DeckSeinen` dentro de `/home/deck/homebrew/plugins/`).*
+- ☁️ **Multi-cloud with bundled rclone:** Supports **Google Drive**, **OneDrive**, and **Dropbox** via the built-in **Services** view, signing in directly through the Steam browser (`rclone` for Linux x86_64 is bundled inside the plugin).
+- 🎮 **Quick Access Menu (QAM):**
+  - Displays only the syncs created or linked on your Steam Deck, grouped by cloud provider.
+  - Real-time status (**Pending** if the last *Push* came from another device like your PC, or **Up to date**).
+  - Live **rclone** progress bar with percentage and transfer details when syncing.
+  - Quick actions for **sync**, **Pull**, **Push**, **View path**, **Delete** (choose between removing only from Steam Deck or also from your cloud account), **Refresh status**, and a **Power / Standby** toggle.
+  - Built-in **English / Español** language switcher in **Services → Settings**.
+- 🔄 **Sync here (pull saves from your cloud to Steam Deck):**
+  - Lists game saves stored in your cloud from other devices.
+  - Automatically detects save paths across Steam/Proton prefixes (`compatdata` on internal SSD and SD card via `libraryfolders.vdf`), native Linux folders, Steam `userdata`, EmuDeck, and Flatpak emulators, or lets you pick a folder manually.
+- 📤 **Upload (push saves from Steam Deck to your cloud):**
+  - Scans Steam/Proton and emulator saves with **SteamGridDB** covers, plus a **Refresh** button.
+  - **Add manual:** Choose a name, cloud service, search covers in a floating **DuckDuckGo** modal, and select a folder or **specific files** (automatically ignoring unselected files and subfolders).
+- 📁 **Built-in read-only file explorer:**
+  - Inspired by Decky File Manager with quick bookmarks (`Home`, `Emulation/saves`, `Steam compatdata`, `SD Card`) to browse and select paths/files safely without modifying or deleting anything.
 
 ---
 
-## 🛠️ Compilación desde código fuente
+## 📦 Installation on Steam Deck
+
+1. Download `DeckSeinen-DeckyPlugin.zip` from the [**Releases**](https://github.com/Mrpapita2124/Deck-Seinen/releases) page.
+2. On your Steam Deck (Gaming Mode), open the **Decky Loader** Quick Access Menu → **Settings** → **Developer** → **Install Plugin from ZIP** and select the downloaded archive.
+   *(Alternatively, extract the `DeckSeinen` folder into `/home/deck/homebrew/plugins/`.)*
+
+---
+
+## 🛠️ Building from Source
 
 ```bash
 npm install
