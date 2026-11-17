@@ -334,12 +334,20 @@ class Plugin:
         return {"ok": True, "state": await self.get_state()}
 
     async def push_sync(self, sync_id: str) -> Dict[str, Any]:
-        res = await asyncio.to_thread(self.manager.push_sync, sync_id)
+        try:
+            res = await asyncio.to_thread(self.manager.push_sync, sync_id)
+        except Exception as exc:
+            decky.logger.exception(f"Error en push_sync: {exc}")
+            res = {"ok": False, "error": str(exc)}
         res["state"] = await self.get_state()
         return res
 
     async def pull_sync(self, sync_id: str) -> Dict[str, Any]:
-        res = await asyncio.to_thread(self.manager.pull_sync, sync_id)
+        try:
+            res = await asyncio.to_thread(self.manager.pull_sync, sync_id)
+        except Exception as exc:
+            decky.logger.exception(f"Error en pull_sync: {exc}")
+            res = {"ok": False, "error": str(exc)}
         res["state"] = await self.get_state()
         return res
 

@@ -502,7 +502,6 @@ class RcloneManager:
 
         self.set_progress(sync_id, sync_name, "push", 0, "Preparing upload...")
         try:
-            self._run_rclone(["mkdir", f"{remote}:{drive_folder}"], timeout=30)
             exclude_args = self._build_exclude_args(local_path, ignored_paths)
             res = self._run_rclone_with_progress(
                 ["sync", local_path, f"{remote}:{drive_folder}", *exclude_args],
@@ -512,7 +511,10 @@ class RcloneManager:
                 timeout=600,
             )
             if res.returncode != 0:
-                return {"ok": False, "error": res.stderr or res.stdout or "Error durante Push con rclone"}
+                err_txt = (res.stderr or res.stdout or "Error durante Push con rclone").strip()
+                if any(k in err_txt.lower() for k in ("invalid_grant", "token expired", "couldn't fetch token", "401 unauthorized", "expired or revoked")):
+                    return {"ok": False, "error": "Cloud session expired or invalid. Please sign in again in Services."}
+                return {"ok": False, "error": err_txt}
 
             now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             file_count = self._count_files(local_path, ignored_paths)
@@ -557,6 +559,11 @@ class RcloneManager:
             self.save_cloud_metadata(provider, cloud_meta)
             self.set_progress(sync_id, sync_name, "push", 100, "Done")
             return {"ok": True, "mapping": mapping}
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": "Upload timed out. Check your internet connection or sign in again."}
+        except Exception as exc:
+            self._log(f"Error en push_sync ({sync_id}): {exc}")
+            return {"ok": False, "error": str(exc)}
         finally:
             self.clear_progress()
 
@@ -599,7 +606,10 @@ class RcloneManager:
                 timeout=600,
             )
             if res.returncode != 0:
-                return {"ok": False, "error": res.stderr or res.stdout or "Error durante Pull con rclone"}
+                err_txt = (res.stderr or res.stdout or "Error durante Pull con rclone").strip()
+                if any(k in err_txt.lower() for k in ("invalid_grant", "token expired", "couldn't fetch token", "401 unauthorized", "expired or revoked")):
+                    return {"ok": False, "error": "Cloud session expired or invalid. Please sign in again in Services."}
+                return {"ok": False, "error": err_txt}
 
             if cloud_match:
                 mapping["lastPushDevice"] = (
@@ -635,6 +645,11 @@ class RcloneManager:
 
             self.set_progress(sync_id, sync_name, "pull", 100, "Done")
             return {"ok": True, "mapping": mapping}
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": "Download timed out. Check your internet connection or sign in again."}
+        except Exception as exc:
+            self._log(f"Error en pull_sync ({sync_id}): {exc}")
+            return {"ok": False, "error": str(exc)}
         finally:
             self.clear_progress()
 
