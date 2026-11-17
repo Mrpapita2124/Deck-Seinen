@@ -656,7 +656,10 @@ export function QamPanel() {
           <PanelSection key={group.provider} title={group.label}>
             {group.items.map((sync) => {
               const isPending =
-                Boolean(sync.lastPushDevice) && sync.lastPushDevice !== deviceName;
+                Boolean(sync.lastPushDevice) &&
+                sync.lastPushDevice !== deviceName &&
+                (!sync.lastPulledAt ||
+                  (Boolean(sync.lastPushAt) && sync.lastPushAt! > sync.lastPulledAt));
               const isBusy = busyId === sync.id;
 
               return (

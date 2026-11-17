@@ -20,6 +20,7 @@ export interface LocalSync {
   coverDataUrl?: string | null;
   lastPushDevice?: string;
   lastPushAt?: string;
+  lastPulledAt?: string;
   fileCount?: number;
 }
 
@@ -30,6 +31,7 @@ export interface CloudGameMeta {
   driveFolder: string;
   lastPushDevice?: string;
   lastPushAt?: string;
+  lastPulledAt?: string;
   fileCount?: number;
   ignoredPaths?: string[];
   coverDataUrl?: string | null;

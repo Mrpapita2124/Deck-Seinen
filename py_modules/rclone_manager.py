@@ -520,6 +520,7 @@ class RcloneManager:
 
             mapping["lastPushDevice"] = device_name
             mapping["lastPushAt"] = now_iso
+            mapping["lastPulledAt"] = now_iso
             mapping["fileCount"] = file_count
             if not mapping.get("createdAt"):
                 mapping["createdAt"] = now_iso
@@ -624,8 +625,13 @@ class RcloneManager:
                     mapping["createdAt"] = cloud_match.get("createdAt")
                 if cloud_match.get("createdByDevice"):
                     mapping["createdByDevice"] = cloud_match.get("createdByDevice")
-                cfg["localMappings"][sync_id] = mapping
-                self.save_config(cfg)
+
+            mapping["lastPulledAt"] = (
+                mapping.get("lastPushAt")
+                or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            )
+            cfg["localMappings"][sync_id] = mapping
+            self.save_config(cfg)
 
             self.set_progress(sync_id, sync_name, "pull", 100, "Done")
             return {"ok": True, "mapping": mapping}

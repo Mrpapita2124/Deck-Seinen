@@ -350,7 +350,14 @@ class Plugin:
             return {"ok": False, "error": "Sincronización no encontrada."}
         device_name = cfg.get("deviceName") or "Steam Deck"
         last_dev = mapping.get("lastPushDevice") or ""
-        if last_dev and last_dev != device_name:
+        last_push_at = mapping.get("lastPushAt") or ""
+        last_pulled_at = mapping.get("lastPulledAt") or ""
+        is_pending = bool(
+            last_dev
+            and last_dev != device_name
+            and (not last_pulled_at or (last_push_at and last_push_at > last_pulled_at))
+        )
+        if is_pending:
             res = await asyncio.to_thread(self.manager.pull_sync, sync_id)
         else:
             res = await asyncio.to_thread(self.manager.push_sync, sync_id)
