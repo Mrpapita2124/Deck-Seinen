@@ -740,7 +740,7 @@ export function QamPanel() {
                             textOverflow: "ellipsis",
                           }}
                         >
-                          {sync.lastPushDevice || deviceName}
+                          {sync.lastPushDevice || tr("Unknown", "Desconocido")}
                         </div>
                       </div>
 

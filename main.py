@@ -83,6 +83,7 @@ class Plugin:
                 mapping["lastPushDevice"] = (
                     cm.get("lastPushedByDevice")
                     or cm.get("lastPushDevice")
+                    or cm.get("createdByDevice")
                     or mapping.get("lastPushDevice")
                 )
                 mapping["lastPushAt"] = (
@@ -203,7 +204,12 @@ class Plugin:
                     "coverDataUrl": meta.get("coverImage") or meta.get("coverDataUrl"),
                     "createdAt": meta.get("createdAt") or "",
                     "createdByDevice": meta.get("createdByDevice") or "",
-                    "lastPushDevice": meta.get("lastPushedByDevice") or meta.get("lastPushDevice") or "",
+                    "lastPushDevice": (
+                        meta.get("lastPushedByDevice")
+                        or meta.get("lastPushDevice")
+                        or meta.get("createdByDevice")
+                        or ""
+                    ),
                     "lastPushAt": meta.get("lastPushedAt") or meta.get("lastPushAt") or "",
                     "fileCount": (
                         meta.get("lastPushedFileCount")

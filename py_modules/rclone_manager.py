@@ -404,7 +404,7 @@ class RcloneManager:
                 )
                 if res.returncode != 0:
                     self._log(f"list_cloud_metadatas ({provider}) code={res.returncode}: {res.stderr or res.stdout}")
-                for fname in os.listdir(tmp_dir):
+                for fname in sorted(os.listdir(tmp_dir), key=lambda n: (0 if not n.startswith("sync-") else 1, n)):
                     if not fname.endswith(".json"):
                         continue
                     fpath = os.path.join(tmp_dir, fname)
@@ -604,6 +604,7 @@ class RcloneManager:
                 mapping["lastPushDevice"] = (
                     cloud_match.get("lastPushedByDevice")
                     or cloud_match.get("lastPushDevice")
+                    or cloud_match.get("createdByDevice")
                     or mapping.get("lastPushDevice")
                 )
                 mapping["lastPushAt"] = (
