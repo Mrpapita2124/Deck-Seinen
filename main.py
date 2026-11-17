@@ -80,11 +80,28 @@ class Plugin:
         for sync_id, mapping in mappings.items():
             cm = by_id.get(sync_id)
             if cm:
-                mapping["lastPushDevice"] = cm.get("lastPushDevice", mapping.get("lastPushDevice"))
-                mapping["lastPushAt"] = cm.get("lastPushAt", mapping.get("lastPushAt"))
-                mapping["fileCount"] = cm.get("fileCount", mapping.get("fileCount"))
-                if cm.get("coverDataUrl"):
-                    mapping["coverDataUrl"] = cm.get("coverDataUrl")
+                mapping["lastPushDevice"] = (
+                    cm.get("lastPushedByDevice")
+                    or cm.get("lastPushDevice")
+                    or mapping.get("lastPushDevice")
+                )
+                mapping["lastPushAt"] = (
+                    cm.get("lastPushedAt")
+                    or cm.get("lastPushAt")
+                    or mapping.get("lastPushAt")
+                )
+                fc = cm.get("lastPushedFileCount")
+                if fc is None:
+                    fc = cm.get("fileCount")
+                if fc is not None:
+                    mapping["fileCount"] = fc
+                cover = cm.get("coverImage") or cm.get("coverDataUrl")
+                if cover:
+                    mapping["coverDataUrl"] = cover
+                if cm.get("createdAt"):
+                    mapping["createdAt"] = cm.get("createdAt")
+                if cm.get("createdByDevice"):
+                    mapping["createdByDevice"] = cm.get("createdByDevice")
                 updated = True
         if updated:
             cfg["localMappings"] = mappings
@@ -129,8 +146,8 @@ class Plugin:
             except Exception as exc:
                 decky.logger.warning(f"Error cargando portadas en list_cloud_game_syncs: {exc}")
             for g in games:
-                if not g.get("coverDataUrl") and g.get("coverUrl"):
-                    g["coverDataUrl"] = g["coverUrl"]
+                if not g.get("coverDataUrl"):
+                    g["coverDataUrl"] = g.get("coverImage") or g.get("coverUrl")
             return games
         except Exception as exc:
             decky.logger.exception(f"Error en list_cloud_game_syncs: {exc}")
@@ -183,10 +200,16 @@ class Plugin:
                     "gameSource": meta.get("gameSource"),
                     "emulatorName": meta.get("emulatorName"),
                     "systemName": meta.get("systemName"),
-                    "coverDataUrl": meta.get("coverDataUrl"),
-                    "lastPushDevice": meta.get("lastPushDevice") or "",
-                    "lastPushAt": meta.get("lastPushAt") or "",
-                    "fileCount": meta.get("fileCount") or 0,
+                    "coverDataUrl": meta.get("coverImage") or meta.get("coverDataUrl"),
+                    "createdAt": meta.get("createdAt") or "",
+                    "createdByDevice": meta.get("createdByDevice") or "",
+                    "lastPushDevice": meta.get("lastPushedByDevice") or meta.get("lastPushDevice") or "",
+                    "lastPushAt": meta.get("lastPushedAt") or meta.get("lastPushAt") or "",
+                    "fileCount": (
+                        meta.get("lastPushedFileCount")
+                        if meta.get("lastPushedFileCount") is not None
+                        else (meta.get("fileCount") or 0)
+                    ),
                 }
                 cfg["localMappings"] = mappings
                 self.manager.save_config(cfg)

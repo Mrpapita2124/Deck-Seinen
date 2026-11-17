@@ -521,10 +521,15 @@ class RcloneManager:
             mapping["lastPushDevice"] = device_name
             mapping["lastPushAt"] = now_iso
             mapping["fileCount"] = file_count
+            if not mapping.get("createdAt"):
+                mapping["createdAt"] = now_iso
+            if not mapping.get("createdByDevice"):
+                mapping["createdByDevice"] = device_name
             cfg["localMappings"][sync_id] = mapping
             self.save_config(cfg)
 
             self.set_progress(sync_id, sync_name, "push", 95, "Updating metadata...")
+            cover_img = mapping.get("coverDataUrl") or mapping.get("coverImage")
             cloud_meta = {
                 "id": sync_id,
                 "name": mapping.get("name"),
@@ -532,11 +537,17 @@ class RcloneManager:
                 "driveFolderPath": drive_folder,
                 "driveFolderName": drive_folder.split("/")[-1] if drive_folder else "",
                 "driveFolder": drive_folder,
+                "createdAt": mapping.get("createdAt") or now_iso,
+                "createdByDevice": mapping.get("createdByDevice") or device_name,
+                "lastPushedAt": now_iso,
+                "lastPushedByDevice": device_name,
+                "lastPushedFileCount": file_count,
                 "lastPushDevice": device_name,
                 "lastPushAt": now_iso,
                 "fileCount": file_count,
                 "ignoredPaths": ignored_paths,
-                "coverDataUrl": mapping.get("coverDataUrl"),
+                "coverImage": cover_img,
+                "coverDataUrl": cover_img,
                 "isGameSave": bool(mapping.get("isGameSave", True)),
                 "gameSource": mapping.get("gameSource"),
                 "emulatorName": mapping.get("emulatorName"),
@@ -590,11 +601,28 @@ class RcloneManager:
                 return {"ok": False, "error": res.stderr or res.stdout or "Error durante Pull con rclone"}
 
             if cloud_match:
-                mapping["lastPushDevice"] = cloud_match.get("lastPushDevice", mapping.get("lastPushDevice"))
-                mapping["lastPushAt"] = cloud_match.get("lastPushAt", mapping.get("lastPushAt"))
-                mapping["fileCount"] = cloud_match.get("fileCount", mapping.get("fileCount"))
-                if cloud_match.get("coverDataUrl"):
-                    mapping["coverDataUrl"] = cloud_match["coverDataUrl"]
+                mapping["lastPushDevice"] = (
+                    cloud_match.get("lastPushedByDevice")
+                    or cloud_match.get("lastPushDevice")
+                    or mapping.get("lastPushDevice")
+                )
+                mapping["lastPushAt"] = (
+                    cloud_match.get("lastPushedAt")
+                    or cloud_match.get("lastPushAt")
+                    or mapping.get("lastPushAt")
+                )
+                fc = cloud_match.get("lastPushedFileCount")
+                if fc is None:
+                    fc = cloud_match.get("fileCount")
+                if fc is not None:
+                    mapping["fileCount"] = fc
+                cover = cloud_match.get("coverImage") or cloud_match.get("coverDataUrl")
+                if cover:
+                    mapping["coverDataUrl"] = cover
+                if cloud_match.get("createdAt"):
+                    mapping["createdAt"] = cloud_match.get("createdAt")
+                if cloud_match.get("createdByDevice"):
+                    mapping["createdByDevice"] = cloud_match.get("createdByDevice")
                 cfg["localMappings"][sync_id] = mapping
                 self.save_config(cfg)
 
